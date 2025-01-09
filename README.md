@@ -52,14 +52,19 @@ This repository includes three primary scripts that serve different purposes:
     - validations(): Compute statistics based on generated file.
 
 ### 3. `plotting.py`
-- **Purpose**: Generates visualizations for the results, such as plots in raster formats.
+- **Purpose**: Generates visualizations for the results in raster formats.
 - **Usage**:
   - After running `main.py` and generating the results, use `plotting.py` to visualize them.
+  - Setup the following varaiables before running this file
   - Command:
-    ```bash
-    python plotting.py
+    ```python
+    # setup the paths for generated results files
+    file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
+    file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
+
+    # Define the paramter for plotting on a raster
+    param = 's_rho'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
     ```
-  - Customize the plotting script as needed to specify the variables or results you wish to plot.
 
 ## Execution Workflow
 1. Edit `config.py` to define your paths and variables.
@@ -67,4 +72,5 @@ This repository includes three primary scripts that serve different purposes:
 3. Run `plotting.py` to generate plots of the results.
 
 The execution of 1 and 2 should be done in following order:
+
 ![Flow Graph](sebal-val.png)

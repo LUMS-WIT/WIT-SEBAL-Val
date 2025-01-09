@@ -23,11 +23,11 @@ def bias(x, y):
     """
     return np.mean(x) - np.mean(y)
 
-def bias_ci(x, y, b, alpha=0.05):
+def bias_ci(x, y, bias, alpha=0.05):
     """
     Confidence interval for bias.
 
-    The confidence interval is the same as the confidence interval for a mean.
+    The confidence interval is calculated using the Student's t-distribution.
 
     Parameters
     ----------
@@ -35,19 +35,30 @@ def bias_ci(x, y, b, alpha=0.05):
         Test input vector.
     y : numpy.ndarray
         Reference input vector.
-    b : float
-        bias
+    bias : float
+        Bias (mean difference between x and y).
     alpha : float, optional
-        1 - confidence level, default is 0.05
+        1 - confidence level, default is 0.05.
 
     Returns
     -------
     lower, upper : float
         Lower and upper confidence interval bounds.
     """
-    n = len(x)
-    delta = np.std(x - y, ddof=1) / np.sqrt(n) * stats.t.ppf(1 - alpha / 2, n - 1)
-    return b - delta, b + delta
+    n = len(y)
+    if n <= 1:
+        raise ValueError("Sample size must be greater than 1 to calculate confidence interval.")
+
+    # Calculate standard error
+    std_error = np.std(x - y, ddof=1) / np.sqrt(n)
+
+    # Compute t-critical value
+    t_crit = stats.t.ppf(1 - alpha / 2, df=n - 1)
+
+    # Calculate confidence interval bounds
+    delta = t_crit * std_error
+    return bias - delta, bias + delta
+
 
 def aad(x, y):
     """
@@ -178,29 +189,33 @@ def ubrmsd(x, y, ddof=0):
 
 def ubrmsd_ci(x, y, ubrmsd, alpha=0.05):
     """
-    Confidende interval for unbiased root-mean-square deviation (uRMSD).
+    Confidence interval for unbiased root-mean-square deviation (ubRMSD).
 
     Parameters
     ----------
-    x : numpy.ndarray
-        Test input vector
-    y : numpy.ndarray
-        Reference input vector
+    x : numpy.ndarray (only for length calculation)
+        Test input vector.
+    y : numpy.ndarray (Not used)
+        Reference input vector.
     ubrmsd : float
-        ubRMSD for this data
+        ubRMSD for this data.
     alpha : float, optional
-        1 - confidence level, default is 0.05
+        1 - confidence level, default is 0.05.
 
     Returns
     -------
     lower, upper : float
         Lower and upper confidence interval bounds.
     """
-    n = len(x)
-    ubMSD = ubrmsd ** 2
-    lb_ubMSD = n * ubMSD / stats.chi2.ppf(1 - alpha / 2, n - 1)
-    ub_ubMSD = n * ubMSD / stats.chi2.ppf(alpha / 2, n - 1)
+    n = len(y)
+    ubMSD = ubrmsd ** 2  # Compute ubMSD (squared RMSD)
+    # Calculate the lower bound for ubMSD using (n-1)
+    lb_ubMSD = (n - 1) * ubMSD / stats.chi2.ppf(1 - alpha / 2, n - 1)
+    # Calculate the upper bound for ubMSD using (n-1)
+    ub_ubMSD = (n - 1) * ubMSD / stats.chi2.ppf(alpha / 2, n - 1)
+    # Return the square root of the bounds to get back to RMSD
     return np.sqrt(lb_ubMSD), np.sqrt(ub_ubMSD)
+
 
 def mse(x, y, ddof=0):
     """

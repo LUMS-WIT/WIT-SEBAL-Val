@@ -10,7 +10,7 @@ import os
 import pandas as pd
 from utils import SoilMoistureData, SebalSoilMoistureData
 from utils import remove_nan_entries, save_to_excel, save_metadata, save_to_plot
-from utils import validations_gpi, compute_statistics, plot_box_and_whiskers
+from utils import validations_gpi, validations_gpi_adv, compute_statistics, plot_box_and_whiskers, plot_metric_with_ci
 from scaling import scaling, temporal_matching
 from sms_calibration import sms_calibrations
 
@@ -25,6 +25,7 @@ if not os.path.exists(VALIDATION_FOLDER):
 
 
 def generate_overalps():
+    
     # ----------------------------------------------------------------------
     # STEP 1 : Reading sms and raster data, finding the overlapping points 
     # and saving them in excel files along with metadata file
@@ -100,17 +101,19 @@ def generate_overalps():
     return
 
 def validations():
+
     # ----------------------------------------------------------------------
     # STEP 2 : Compute statistics based on generated file
     # ----------------------------------------------------------------------
 
-    metrics_dict, num_of_obs = validations_gpi(INPUT_FOLDER)
+    # metrics_dict, num_of_obs = validations_gpi(INPUT_FOLDER)
+    metrics_dict, num_of_obs = validations_gpi_adv(INPUT_FOLDER)
     stats_results = compute_statistics(metrics_dict)
     print('------------- results for gpi based metrics ----------------')
     print('Number of Observatoions N:', num_of_obs)
     print(stats_results)
-    # plot_box_and_whiskers(metrics_dict)
-
+    plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
+    plot_metric_with_ci(metrics_dict, metric='ubrmsd')
 
     df = pd.read_excel(METADATA_FILE_PATH)
     df['gpi'] = df['gpi'].astype(str)
@@ -132,37 +135,25 @@ def validations():
     observations_df = pd.DataFrame({'Metric': ['Observations'], 'mean': [num_of_obs], 'median': [''], 'IQR': ['']})
     summary_df = pd.concat([observations_df, summary_df], ignore_index=True)
 
-    # Save the merged DataFrame to the first sheet and the summary DataFrame to the second sheet
-    with pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter') as writer:
-        merged_df.to_excel(writer, sheet_name='MetaData', index=False)
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+    if COMBINE_VALIDATIONS:
+        # Save only the summary
+        with pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter') as writer:
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+    else:
+        # Save the merged DataFrame to the first sheet and the summary DataFrame to the second sheet
+        with pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter') as writer:
+            merged_df.to_excel(writer, sheet_name='MetaData', index=False)
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
 
     print("Validations saved to", OUTPUT_FILE)
     plot_file_name = PLOT_OUTPUT_FILE
 
-    # if COMBINE_VALIDATIONS:
-    #     # Save the merged DataFrame to the first sheet and the summary DataFrame to the second sheet
-    #     with pd.ExcelWriter(combine_output_file, engine='xlsxwriter') as writer:
-    #         summary_df.to_excel(writer, sheet_name='Summary', index=False)
-
-    #     print("Validations saved to", combine_output_file)
-    #     plot_file_name = combine_plot_file_output
-    # else:
-    #     # Save the merged DataFrame to the first sheet and the summary DataFrame to the second sheet
-    #     with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
-    #         merged_df.to_excel(writer, sheet_name='MetaData', index=False)
-    #         summary_df.to_excel(writer, sheet_name='Summary', index=False)
-
-    #     print("Validations saved to", output_file)
-    #     plot_file_name = plot_file_output
 
     # print('------------- results for combined metrics ----------------')
     # metrics_dict_, num_of_obs_ = validations(data_folder)
     # print('Number of Observatoions N:', num_of_obs_)
     # print(metrics_dict_)
-
-
-    plot_box_and_whiskers(metrics_dict, filename= plot_file_name, save=False)
 
     return
 
@@ -172,7 +163,7 @@ if __name__ == "__main__":
     print('---------------------------------------------')
     print('------- Generating overlaping gpi -----------')
     print('---------------------------------------------')
-    # generate_overalps()
+    generate_overalps()
 
     print('---------------------------------------------')
     print('------- Performing validations --------------')

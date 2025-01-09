@@ -532,7 +532,7 @@ def validations_gpi(folder_path, threshold= -0.5):
             s_rho = metrics.spearman_r(sebal_sm, wit_sm)
 
             # add a check to discard values with high negative corelation ( < 70%) and low points (<10)
-            # Append all points with correlation greater than -0.7
+            # Append all points with correlation greater than -0.5
             if p_rho >= threshold and s_rho >= threshold:
                 observations += len(wit_sm)
                 metrics_dict['gpi'].append(gpi)
@@ -542,7 +542,7 @@ def validations_gpi(folder_path, threshold= -0.5):
                 metrics_dict['p_rho'].append(p_rho)
                 metrics_dict['s_rho'].append(s_rho)
             # Check for high negative correlation (< -0.7) with sufficient data points (> 10)
-            elif (p_rho < -0.7 or s_rho < threshold) and len(wit_sm) > 10:
+            elif (p_rho < threshold or s_rho < threshold) and len(wit_sm) > 10:
                 observations += len(wit_sm)
                 metrics_dict['gpi'].append(gpi)
                 metrics_dict['bias'].append(bias)
@@ -571,14 +571,14 @@ def compute_statistics(data_dict):
     return stats_results
 
 
-def plot_box_and_whiskers(metrics_dict, filename, save= False):
+def plot_box_and_whiskers(metrics_dict, filename= None, save= False):
     # Creating the plot
     fig, ax = plt.subplots()
     # Prepare data for plotting
-    # Prepare data for plotting, excluding NaN values
+    # Prepare data for plotting, excluding NaN values, gpi and CIs
     data_to_plot = [
-        [value for value in metrics_dict[key] if not np.isnan(value)] 
-        for key in metrics_dict if key != 'gpi'
+        [value for value in metrics_dict[key] if not np.isnan(value)]
+        for key in metrics_dict if key != 'gpi' and not key.endswith('_cl') and not key.endswith('_cu')
     ]
     # Create box plot
     bp = ax.boxplot(data_to_plot, showfliers=False) #, notch=True, patch_artist=True)
@@ -598,7 +598,7 @@ def plot_box_and_whiskers(metrics_dict, filename, save= False):
     ax.set_title('Box and Whisker Plot for Metrics')
     ax.set_ylabel('Metric Values')
     ax.set_xlabel('Metrics')
-    ax.set_xticklabels([key for key in metrics_dict.keys() if key != 'gpi'])
+    ax.set_xticklabels([key for key in metrics_dict.keys() if key != 'gpi' and not key.endswith('_cl') and not key.endswith('_cu')])
 
     # Add horizontal grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
@@ -608,3 +608,164 @@ def plot_box_and_whiskers(metrics_dict, filename, save= False):
     if save:
         fig.savefig(filename)
         print(f'Plot saved as {filename}')
+
+def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
+    """
+    Plots a box-and-whiskers plot for a specified metric along with its confidence intervals.
+
+    Parameters
+    ----------
+    metrics_dict : dict
+        Dictionary containing metrics, including the specified metric and its confidence intervals.
+    metric : str
+        The metric to plot (e.g., 'ubrmsd', 'bias').
+    filename : str, optional
+        Filename to save the plot (default is None).
+    save : bool, optional
+        Whether to save the plot (default is False).
+    """
+    # Ensure required keys are present
+    if metric not in metrics_dict or f"{metric}_cl" not in metrics_dict or f"{metric}_cu" not in metrics_dict:
+        raise ValueError(f"Metrics dictionary must contain '{metric}', '{metric}_cl', and '{metric}_cu'.")
+
+    # Prepare data for plotting
+    data_to_plot = [
+        [value for value in metrics_dict[f'{metric}_cl'] if not np.isnan(value)],
+        [value for value in metrics_dict[metric] if not np.isnan(value)],
+        [value for value in metrics_dict[f'{metric}_cu'] if not np.isnan(value)],
+    ]
+
+    # Create the plot
+    fig, ax = plt.subplots()
+    bp = ax.boxplot(data_to_plot, showfliers=False) #, notch=True, patch_artist=True)
+
+    # Annotating the medians
+    for i, line in enumerate(bp['medians']):
+        x, y = line.get_xydata()[1]  # Top of median line
+        ax.annotate(f'{y:.3f}', xy=(x, y), xytext=(0, 5),
+                    textcoords='offset points', ha='right', va='bottom')
+
+    # Adding CI annotations inside the graph
+    annotation_text = (
+        f"cl: Lower Confidence Interval\n"
+        f"cu: Upper Confidence Interval"
+    )
+    ax.text(0.05, 0.95, annotation_text, transform=ax.transAxes,
+            fontsize=10, color='black', ha='left', va='top')
+
+    # Set title and labels
+    ax.set_title(f'Box and Whisker Plot for {metric.upper()} with Confidence Intervals')
+    ax.set_ylabel('Metric Values')
+    ax.set_xticks([1, 2, 3])
+    ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'])
+
+    # Add grid lines
+    ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
+
+    # Show the plot
+    plt.show()
+
+    # Save the plot if requested
+    if save and filename:
+        fig.savefig(filename)
+        print(f"Plot saved as {filename}")
+
+
+
+def validations_gpi_adv(folder_path, threshold= -0.5, alpha=0.05):
+    """
+    Validates GPI metrics and calculates confidence intervals for ubrmsd.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing validation files.
+    threshold : float, optional
+        Threshold for correlation metrics (default is -0.5).
+    alpha : float, optional
+        Confidence level for ubrmsd CI (default is 0.05).
+
+    Returns
+    -------
+    metrics_dict : dict
+        Dictionary containing calculated metrics, including CI for ubrmsd.
+    observations : int
+        Total number of observations.
+    """   
+    # Initialize a dictionary to store lists of results for each metric
+    # Initialize a dictionary to store lists of results for each metric
+    metrics_dict = {
+        'gpi': [],
+        'bias_cl': [],
+        'bias': [],
+        'bias_cu': [],
+        'mse': [],
+        'ubrmsd_cl': [],  # Lower bound of CI
+        'ubrmsd': [],
+        'ubrmsd_cu': [],  # Upper bound of CI
+        'p_rho': [],
+        's_rho': []
+    }
+
+    if COMBINE_VALIDATIONS:
+        specific_folder_name = f'*_{TEMPORAL_WIN}'
+        files = combine_val_files(INPUT_FOLDER, specific_folder_name)
+        total_files = len(files)
+        print(f"Reading {total_files} files...")  # Debugging outpt
+    
+    else:    
+        files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".xlsx") and 'witgpi' in f]
+        total_files = len(files)
+        print(f"Reading {total_files} files...")  # Debugging output
+
+    # defining pattern for extracting gpi
+    pattern = r'witgpi_([^_]+)_'
+
+    observations = 0
+    for file in files:
+        wit_sm, sebal_sm = extract_sm_data(file)
+
+        gpi = re.search(pattern, file).group(1)
+        # x and y must have length at least 2. otherwise p_rho wont work
+        if len(wit_sm) > 1:
+
+            bias = metrics.bias(sebal_sm, wit_sm)
+            mse, mse_corr, mse_bias, mse_var = metrics.mse(sebal_sm, wit_sm)
+            ubrmsd = metrics.ubrmsd(sebal_sm, wit_sm)
+            p_rho = metrics.pearson_r(sebal_sm, wit_sm)
+            s_rho = metrics.spearman_r(sebal_sm, wit_sm)
+
+            # Compute confidence intervals
+            ubrmsd_cl, ubrmsd_cu = metrics.ubrmsd_ci(sebal_sm, wit_sm, ubrmsd, alpha)
+            bias_cl, bias_cu = metrics.bias_ci(sebal_sm, wit_sm, ubrmsd, alpha)
+
+            # add a check to discard values with high negative corelation ( < 70%) and low points (<10)
+            # Append all points with correlation greater than -0.5
+            if p_rho >= threshold and s_rho >= threshold:
+                observations += len(wit_sm)
+                metrics_dict['gpi'].append(gpi)
+                metrics_dict['bias_cl'].append(bias_cl)
+                metrics_dict['bias'].append(bias)
+                metrics_dict['bias_cu'].append(bias_cu)
+                metrics_dict['mse'].append(mse)
+                metrics_dict['ubrmsd_cl'].append(ubrmsd_cl)
+                metrics_dict['ubrmsd'].append(ubrmsd)                
+                metrics_dict['ubrmsd_cu'].append(ubrmsd_cu)
+                metrics_dict['p_rho'].append(p_rho)
+                metrics_dict['s_rho'].append(s_rho)
+            # Check for high negative correlation (< -0.7) with sufficient data points (> 10)
+            elif (p_rho < threshold or s_rho < threshold) and len(wit_sm) > 10:
+                observations += len(wit_sm)
+                metrics_dict['gpi'].append(gpi)
+                metrics_dict['bias_cl'].append(bias_cl)
+                metrics_dict['bias'].append(bias)
+                metrics_dict['bias_cu'].append(bias_cu)
+                metrics_dict['mse'].append(mse)
+                metrics_dict['ubrmsd_cl'].append(ubrmsd_cl)
+                metrics_dict['ubrmsd'].append(ubrmsd)
+                metrics_dict['ubrmsd_cu'].append(ubrmsd_cu)
+                metrics_dict['p_rho'].append(p_rho)
+                metrics_dict['s_rho'].append(s_rho)
+
+    
+    return metrics_dict, observations
