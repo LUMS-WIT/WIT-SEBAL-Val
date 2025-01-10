@@ -137,7 +137,7 @@ gl.xlabel_style = {'size': 12, 'color': 'gray'}
 gl.ylabel_style = {'size': 12, 'color': 'gray'}
 
 # Title for full map
-ax1.set_title('Full Map of Pakistan with Highlighted Extent', fontsize=14)
+# ax1.set_title('Full Map of Pakistan with Highlighted Extent', fontsize=14)
 
 # Plot 2: Zoomed-in view
 fig2, ax2 = plt.subplots(figsize=(10, 8), subplot_kw={'projection': ccrs.PlateCarree()})
@@ -169,7 +169,7 @@ sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgec
 
 # Add a color bar
 cbar = plt.colorbar(sc, ax=ax2, orientation='vertical')
-cbar.set_label(metric_names.get(param, param))
+cbar.set_label(metric_names.get(param, param), fontsize = 15)
 
 # Add a title
 # ax2.set_title(f'Scatter Plot of {param} metrics', fontsize=14)

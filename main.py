@@ -25,7 +25,7 @@ if not os.path.exists(VALIDATION_FOLDER):
 
 
 def generate_overalps():
-    
+
     # ----------------------------------------------------------------------
     # STEP 1 : Reading sms and raster data, finding the overlapping points 
     # and saving them in excel files along with metadata file
@@ -113,7 +113,7 @@ def validations():
     print('Number of Observatoions N:', num_of_obs)
     print(stats_results)
     plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
-    plot_metric_with_ci(metrics_dict, metric='ubrmsd')
+    plot_metric_with_ci(metrics_dict, metric='bias')
 
     df = pd.read_excel(METADATA_FILE_PATH)
     df['gpi'] = df['gpi'].astype(str)
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     print('---------------------------------------------')
     print('------- Generating overlaping gpi -----------')
     print('---------------------------------------------')
-    generate_overalps()
+    # generate_overalps()
 
     print('---------------------------------------------')
     print('------- Performing validations --------------')

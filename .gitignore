@@ -1,4 +1,5 @@
 validations/
 __pycache__/
-
+figures/
+*.svg
 .$*

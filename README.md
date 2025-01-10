@@ -30,9 +30,9 @@ This repository includes three primary scripts that serve different purposes:
   - Example:
     ```python
     # Define the input and output paths
-    ROW_PATH = "149039 or 150039"
-    RESCALING = true # whether you want to apply statistical rescaling
-    COMBINE_VALIDATIONS = false # only to set true once both 150/149 overlapping points have been generated 
+    ROW_PATH = "149039" # or "150039"
+    RESCALING = True # whether you want to apply statistical rescaling
+    COMBINE_VALIDATIONS = False # only to set true once both 150/149 overlapping points have been generated 
     # Other configuration variables
     ```
   - Ensure all required paths and parameters are correctly set before running other scripts.

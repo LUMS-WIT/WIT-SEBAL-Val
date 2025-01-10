@@ -595,10 +595,12 @@ def plot_box_and_whiskers(metrics_dict, filename= None, save= False):
     #     ax.annotate(f'{mean_value:.3f}', xy=(i+1, mean_value), xytext=(0, 10),
     #                 textcoords='offset points', ha='center', va='bottom')
                 
-    ax.set_title('Box and Whisker Plot for Metrics')
-    ax.set_ylabel('Metric Values')
-    ax.set_xlabel('Metrics')
-    ax.set_xticklabels([key for key in metrics_dict.keys() if key != 'gpi' and not key.endswith('_cl') and not key.endswith('_cu')])
+    # ax.set_title('Box and Whisker Plot for Metrics')
+    ax.set_ylabel('Metric Values', fontsize = 15)
+    ax.set_xlabel('Metrics', fontsize = 15)
+    metrics_names = ['Bias \n (m³/m³)', 'mse \n (m³/m³)', 'Ubrmsd \n (m³/m³)', 'pearson r', 'spearman rho']
+    # ax.set_xticklabels([key for key in metrics_dict.keys() if key != 'gpi' and not key.endswith('_cl') and not key.endswith('_cu')])
+    ax.set_xticklabels([metric for metric in metrics_names], fontsize = 15)
 
     # Add horizontal grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
@@ -651,13 +653,13 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
         f"cu: Upper Confidence Interval"
     )
     ax.text(0.05, 0.95, annotation_text, transform=ax.transAxes,
-            fontsize=10, color='black', ha='left', va='top')
+            fontsize=15, color='black', ha='left', va='top')
 
     # Set title and labels
-    ax.set_title(f'Box and Whisker Plot for {metric.upper()} with Confidence Intervals')
-    ax.set_ylabel('Metric Values')
+    ax.set_title(f'Plot for {metric.upper()} with Confidence Intervals', fontsize=15)
+    ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=15)
     ax.set_xticks([1, 2, 3])
-    ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'])
+    ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'], fontsize=15)
 
     # Add grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
