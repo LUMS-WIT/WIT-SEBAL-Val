@@ -7,6 +7,9 @@ To run the models and scripts in this repository, ensure your system meets the f
 
 ### Prerequisites
 - Python 3.8 or higher
+- Input Dataset(s)
+  - Soil moisture raster maps
+  - WITSMS-Network Dataset
 
 1. **Clone the Repository**
    ```bash
