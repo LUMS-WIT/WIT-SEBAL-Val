@@ -19,7 +19,7 @@ file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
 file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
-param = 's_rho'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+param = 'ubrmsd'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
 
 # Function to define custom color maps
 def get_status_colors():
@@ -46,6 +46,8 @@ _cclasses =  {
         'YlGn'),  # sequential: increasing value good (n_obs, STDerr)
     'qua_neutr':
     get_status_colors(),  # qualitative category with 2 forced colors
+    'custom': plt.get_cmap(
+        'viridis')
 }
 
 _colormaps = {
@@ -58,7 +60,9 @@ _colormaps = {
     'rmsd': _cclasses['seq_worse'],
     'bias': _cclasses['div_neutr'],
     # 'n_obs': _cclasses['seq_better'],
-    'overlaps': _cclasses['seq_better'],
+    # 'overlaps': _cclasses['seq_better'],  # orginal
+    # 'ubrmsd': _cclasses['seq_worse'], # orginal
+    'overlaps': _cclasses['div_neutr'],
     'ubrmsd': _cclasses['seq_worse'],
     'mse': _cclasses['seq_worse'],
     'mse_corr': _cclasses['seq_worse'],
@@ -165,11 +169,11 @@ gl2.xlabel_style = {'size': 12, 'color': 'gray'}
 gl2.ylabel_style = {'size': 12, 'color': 'gray'}
 
 # Plot the scatter points
-sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree())
+sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=-0.04, vmax=0.04)
 
 # Add a color bar
 cbar = plt.colorbar(sc, ax=ax2, orientation='vertical')
-cbar.set_label(metric_names.get(param, param), fontsize = 15)
+cbar.set_label(metric_names.get(param, param), fontsize = 18)
 
 # Add a title
 # ax2.set_title(f'Scatter Plot of {param} metrics', fontsize=14)

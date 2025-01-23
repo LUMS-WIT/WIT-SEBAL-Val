@@ -657,7 +657,10 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
 
     # Set title and labels
     ax.set_title(f'Plot for {metric.upper()} with Confidence Intervals', fontsize=15)
-    ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=15)
+    if metric == 'bias':
+        ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=15)
+    else:
+        ax.set_ylabel('Unbiased root-mean-square deviation in m³/m³', fontsize=15)
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'], fontsize=15)
 
