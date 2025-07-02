@@ -77,3 +77,18 @@ This repository includes three primary scripts that serve different purposes:
 The execution of 1 and 2 should be done in following order:
 
 ![Flow Graph](sebal-val.png)
+
+## Citation
+If you use this project in your research, please cite:
+## Citation
+
+```bibtex
+@preprint{rafique2025soilmoisture,
+  author       = {Hamza Rafique and Abubakr Muhammad},
+  title        = {Validation of Field Scale Soil Moisture Estimates for a Water-Stressed Region: A Case Study in the Indus River Basin, Pakistan},
+  year         = {2025},
+  note         = {Preprint, submitted to Journal of Hydrology: Regional Studies},
+  doi          = {10.2139/ssrn.5314199},
+  url          = {https://ssrn.com/abstract=5314199}
+}
+
