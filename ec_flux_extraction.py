@@ -177,19 +177,42 @@ for col in ["Temp_inst", "RH_inst", "Wind_inst", "Rs_inst"]:
 merged_df = pd.merge(merged_df, hh_overpass, on="date", how="left")
 
 # -------------------------------
-# Step 7. Add InputMap and OutputMap columns
+# Step 7. Add InputMap, OutputMap, and QualityMask columns
 # -------------------------------
-
 merged_df["InputMap"] = merged_df["scene"].apply(
     lambda s: os.path.join(input_root, s)
 )
 merged_df["OutputMap"] = merged_df["scene"].apply(
     lambda s: os.path.join(output_root, s)
 )
+merged_df["QualityMask"] = merged_df["scene"].apply(
+    lambda s: os.path.join(input_root, s, f"{s}_QA_PIXEL.TIF")
+)
 
 # -------------------------------
-# Step 8. Save results
+# Step 8. Add placeholder Transm_24 (if needed)
+# -------------------------------
+if "Transm_24" not in merged_df.columns:
+    merged_df["Transm_24"] = np.nan
+
+# -------------------------------
+# Step 9. Reorder columns
+# -------------------------------
+col_order = [
+    "scene", "date", "time",          # keep identifiers first
+    "Temp_inst", "Temp_24",
+    "RH_inst", "RH_24",
+    "Wind_inst", "Wind_24",
+    "Rs_24", "Transm_24", "Rs_inst",
+    "InputMap", "OutputMap", "QualityMask"
+]
+
+merged_df = merged_df[[c for c in col_order if c in merged_df.columns]]
+
+# -------------------------------
+# Step 10. Save results
 # -------------------------------
 merged_df.to_csv(out_csv, index=False)
 print(f"Saved results to {out_csv}")
 print(merged_df.head())
+
