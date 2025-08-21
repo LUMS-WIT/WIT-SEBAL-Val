@@ -12,6 +12,8 @@ flux_daily_path = r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SU
 flux_halfhourly_path = r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_HH_2014-2023_5-7.csv"
 out_csv = "landsat_meteo_match.csv"
 
+untarred= False
+
 
 
 """
@@ -32,7 +34,7 @@ SW_IN_F  -> Rs_inst   (Incoming Shortwave Radiation, W/m², half-hourly at 18:30
 # Step 1. Extract Landsat dates
 # -------------------------------
 def extract_landsat_datetime_from_tar(tar_path):
-    """Extract DATE_ACQUIRED and SCENE_CENTER_TIME from Landsat tar file."""
+    """Extract DATE_ACQUIRED and SCENE_CENTER_TIME from a Landsat tar file."""
     date, time = None, None
     with tarfile.open(tar_path, "r") as tar:
         mtl_file = [m for m in tar.getnames() if m.endswith("_MTL.txt")]
@@ -47,23 +49,53 @@ def extract_landsat_datetime_from_tar(tar_path):
         date_match = re.search(r"DATE_ACQUIRED\s=\s(.*)", content)
         time_match = re.search(r"SCENE_CENTER_TIME\s=\s(.*)", content)
 
-        if date_match:
-            date = date_match.group(1).strip()
-        if time_match:
-            time = time_match.group(1).strip().replace("Z", "")
+        date = date_match.group(1).strip() if date_match else None
+        time = time_match.group(1).strip().replace("Z", "") if time_match else None
     return date, time
 
-tar_files = [os.path.join(tar_dir, f) for f in os.listdir(tar_dir) if f.endswith(".tar")]
+def extract_landsat_datetime_from_folder(scene_dir):
+    """Extract DATE_ACQUIRED and SCENE_CENTER_TIME from a Landsat folder (untarred)."""
+    mtl_files = [f for f in os.listdir(scene_dir) if f.endswith("_MTL.txt")]
+    if not mtl_files:
+        return None, None
+    mtl_path = os.path.join(scene_dir, mtl_files[0])
 
+    with open(mtl_path, "r") as f:
+        content = f.read()
+
+    date_match = re.search(r"DATE_ACQUIRED\s=\s(.*)", content)
+    time_match = re.search(r"SCENE_CENTER_TIME\s=\s(.*)", content)
+
+    date = date_match.group(1).strip() if date_match else None
+    time = time_match.group(1).strip().replace("Z", "") if time_match else None
+    return date, time
+
+# -------------------------------
+# Build Landsat records
+# -------------------------------
 landsat_records = []
-for tar_path in tar_files:
-    date, time = extract_landsat_datetime_from_tar(tar_path)
-    if date:
-        landsat_records.append({
-            "scene": os.path.basename(tar_path).replace(".tar", ""),  # strip ".tar"
-            "date": date,
-            "time": time
-        })
+if untarred:
+    # Loop over folders
+    scene_dirs = [os.path.join(tar_dir, d) for d in os.listdir(tar_dir) if os.path.isdir(os.path.join(tar_dir, d))]
+    for scene_dir in scene_dirs:
+        date, time = extract_landsat_datetime_from_folder(scene_dir)
+        if date:
+            landsat_records.append({
+                "scene": os.path.basename(scene_dir),
+                "date": date,
+                "time": time
+            })
+else:
+    # Loop over tar files
+    tar_files = [os.path.join(tar_dir, f) for f in os.listdir(tar_dir) if f.endswith(".tar")]
+    for tar_path in tar_files:
+        date, time = extract_landsat_datetime_from_tar(tar_path)
+        if date:
+            landsat_records.append({
+                "scene": os.path.basename(tar_path).replace(".tar", ""),  # strip ".tar"
+                "date": date,
+                "time": time
+            })
 
 landsat_df = pd.DataFrame(landsat_records)
 landsat_df["date"] = pd.to_datetime(landsat_df["date"])
