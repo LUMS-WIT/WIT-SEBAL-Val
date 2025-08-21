@@ -4,15 +4,15 @@ import os
 import pandas as pd
 import numpy as np
 
-input_root = r"F:\SEBAL\datasets\landsat"
-output_root = r"F:\SEBAL\datasets\SEBAL_out"
+input_root = r"D:\SEBAL\datasets\landsat\calibrations"
+output_root = r"D:\SEBAL\datasets\SEBAL_out\calibrations"
 
-tar_dir = r"F:\SEBAL\datasets\landsat\calibrations\\"
-flux_daily_path = r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_DD_2014-2023_5-7.csv"
-flux_halfhourly_path = r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_HH_2014-2023_5-7.csv"
+
+flux_daily_path = r"D:\SEBAL\datasets\EC Flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_DD_2014-2023_5-7.csv"
+flux_halfhourly_path = r"D:\SEBAL\datasets\EC Flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_HH_2014-2023_5-7.csv"
 out_csv = "landsat_meteo_match.csv"
 
-untarred= False
+untarred= True
 
 
 
@@ -76,7 +76,7 @@ def extract_landsat_datetime_from_folder(scene_dir):
 landsat_records = []
 if untarred:
     # Loop over folders
-    scene_dirs = [os.path.join(tar_dir, d) for d in os.listdir(tar_dir) if os.path.isdir(os.path.join(tar_dir, d))]
+    scene_dirs = [os.path.join(input_root, d) for d in os.listdir(input_root) if os.path.isdir(os.path.join(input_root, d))]
     for scene_dir in scene_dirs:
         date, time = extract_landsat_datetime_from_folder(scene_dir)
         if date:
@@ -87,7 +87,7 @@ if untarred:
             })
 else:
     # Loop over tar files
-    tar_files = [os.path.join(tar_dir, f) for f in os.listdir(tar_dir) if f.endswith(".tar")]
+    tar_files = [os.path.join(input_root, f) for f in os.listdir(input_root) if f.endswith(".tar")]
     for tar_path in tar_files:
         date, time = extract_landsat_datetime_from_tar(tar_path)
         if date:
@@ -189,11 +189,11 @@ merged_df["QualityMask"] = merged_df["scene"].apply(
     lambda s: os.path.join(input_root, s, f"{s}_QA_PIXEL.TIF")
 )
 
-# -------------------------------
-# Step 8. Add placeholder Transm_24 (if needed)
-# -------------------------------
-if "Transm_24" not in merged_df.columns:
-    merged_df["Transm_24"] = np.nan
+# # -------------------------------
+# # Step 8. Add placeholder Transm_24 (if needed)
+# # -------------------------------
+# if "Transm_24" not in merged_df.columns:
+#     merged_df["Transm_24"] = np.nan
 
 # -------------------------------
 # Step 9. Reorder columns
@@ -203,7 +203,7 @@ col_order = [
     "Temp_inst", "Temp_24",
     "RH_inst", "RH_24",
     "Wind_inst", "Wind_24",
-    "Rs_24", "Transm_24", "Rs_inst",
+    "Rs_24", "Rs_inst",
     "InputMap", "OutputMap", "QualityMask"
 ]
 
