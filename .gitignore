@@ -7,3 +7,5 @@ ec_flux/
 *.txt
 temp*
 *.csv
+calibrations/
+calibrated/

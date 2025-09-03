@@ -1,218 +1,212 @@
+"""
+2a.
+Load AmeriFlux daily CSV, clean it, and subset to a date range and desired variables.
+It uses the SEBAL outputs to subset the temporal requirements for daily and user input
+for instantaneous data.
+
+This data is meant for SEBAL (meteo) as well as for calibrations (energy modules)
+
+Returns
+-------
+pd.DataFrame
+    Cleaned dataframe indexed by DATE with the selected variables.
+    landsat_meteo_energy_multisite.xlsx
+
+Raises
+------
+ValueError
+    If none of the expected key variables are present in the CSV.
+"""
+
+import os
 import tarfile
 import re
-import os
 import pandas as pd
 import numpy as np
+import glob
 
-input_root = r"D:\SEBAL\datasets\landsat\calibrations"
-output_root = r"D:\SEBAL\datasets\SEBAL_out\calibrations"
+# ---------------------------------------
+# Define multiple tower sites here
+# Each site can now have its own input_root, output_root, and target_time
+# ---------------------------------------
+target_time_R = pd.to_datetime("18:30:00")
+target_time_Src = pd.to_datetime("18:00:00")
 
+sites = [
+    {
+        "name": "RIs",
+        "flux_daily_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_DD_2014-2023_5-7.csv",
+        "flux_halfhourly_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_HH_2014-2023_5-7.csv",
+        "input_root": r"F:\SEBAL\datasets\landsat\calibrations",
+        "output_root": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rls",
+        "target_time": (target_time_R - pd.Timedelta(hours=7)).time()
+    },
+    {
+        "name": "Rms",
+        "flux_daily_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rms_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rms_FLUXNET_SUBSET_DD_2014-2023_5-7.csv",
+        "flux_halfhourly_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rms_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rms_FLUXNET_SUBSET_HH_2014-2023_5-7.csv",
+        "input_root": r"F:\SEBAL\datasets\landsat\calibrations",
+        "output_root": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rms",
+        "target_time": (target_time_R - pd.Timedelta(hours=7)).time()
+    },
+    {
+        "name": "Rwf",
+        "flux_daily_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rwf_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rwf_FLUXNET_SUBSET_DD_2014-2023_5-7.csv",
+        "flux_halfhourly_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BsH\AMF_US-Rwf_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rwf_FLUXNET_SUBSET_HH_2014-2023_5-7.csv",
+        "input_root": r"F:\SEBAL\datasets\landsat\calibrations",
+        "output_root": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rwf",
+        "target_time": (target_time_R - pd.Timedelta(hours=7)).time()
+    }, 
+        {
+        "name": "Src",
+        "flux_daily_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BwH\AMF_US-SRC_FLUXNET_SUBSET_2008-2014_5-7\AMF_US-SRC_FLUXNET_SUBSET_DD_2008-2014_5-7.csv",
+        "flux_halfhourly_path": r"F:\WIT-SEBAL-Val\ec_flux\Ameriflux\BwH\AMF_US-SRC_FLUXNET_SUBSET_2008-2014_5-7\AMF_US-SRC_FLUXNET_SUBSET_HH_2008-2014_5-7.csv",
+        "input_root": r"F:\SEBAL\datasets\landsat\calibrations",
+        "output_root": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Src",
+        "target_time": (target_time_Src - pd.Timedelta(hours=7)).time()
+    }
+]
 
-flux_daily_path = r"D:\SEBAL\datasets\EC Flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_DD_2014-2023_5-7.csv"
-flux_halfhourly_path = r"D:\SEBAL\datasets\EC Flux\Ameriflux\BsH\AMF_US-Rls_FLUXNET_SUBSET_2014-2023_5-7\AMF_US-Rls_FLUXNET_SUBSET_HH_2014-2023_5-7.csv"
-out_csv = "landsat_meteo_match.csv"
+out_excel = "landsat_meteo_energy_multisite.xlsx"
 
-untarred= True
-
-
-
-"""
-Variable mapping from AmeriFlux to output CSV:
-----------------------------------------------
-TA_F     -> Temp_24   (Air Temperature, °C, daily)
-RH       -> RH_24     (Relative Humidity, %, daily)
-WS_F     -> Wind_24   (Wind Speed, m/s, daily)
-SW_IN_F  -> Rs_24     (Incoming Shortwave Radiation, W/m², daily)
-
-TA_F     -> Temp_inst (Air Temperature, °C, half-hourly at 18:30)
-RH_fixed -> RH_inst   (Relative Humidity, %, half-hourly at 18:30)
-WS_F     -> Wind_inst (Wind Speed, m/s, half-hourly at 18:30)
-SW_IN_F  -> Rs_inst   (Incoming Shortwave Radiation, W/m², half-hourly at 18:30)
-"""
-
-# -------------------------------
-# Step 1. Extract Landsat dates
-# -------------------------------
-def extract_landsat_datetime_from_tar(tar_path):
-    """Extract DATE_ACQUIRED and SCENE_CENTER_TIME from a Landsat tar file."""
-    date, time = None, None
-    with tarfile.open(tar_path, "r") as tar:
-        mtl_file = [m for m in tar.getnames() if m.endswith("_MTL.txt")]
-        if not mtl_file:
-            return None, None
-        mtl_file = mtl_file[0]
-        f = tar.extractfile(mtl_file)
-        if f is None:
-            return None, None
-        content = f.read().decode("utf-8")
-
-        date_match = re.search(r"DATE_ACQUIRED\s=\s(.*)", content)
-        time_match = re.search(r"SCENE_CENTER_TIME\s=\s(.*)", content)
-
-        date = date_match.group(1).strip() if date_match else None
-        time = time_match.group(1).strip().replace("Z", "") if time_match else None
-    return date, time
-
-def extract_landsat_datetime_from_folder(scene_dir):
-    """Extract DATE_ACQUIRED and SCENE_CENTER_TIME from a Landsat folder (untarred)."""
-    mtl_files = [f for f in os.listdir(scene_dir) if f.endswith("_MTL.txt")]
-    if not mtl_files:
-        return None, None
-    mtl_path = os.path.join(scene_dir, mtl_files[0])
-
-    with open(mtl_path, "r") as f:
-        content = f.read()
-
-    date_match = re.search(r"DATE_ACQUIRED\s=\s(.*)", content)
-    time_match = re.search(r"SCENE_CENTER_TIME\s=\s(.*)", content)
-
-    date = date_match.group(1).strip() if date_match else None
-    time = time_match.group(1).strip().replace("Z", "") if time_match else None
-    return date, time
-
-# -------------------------------
-# Build Landsat records
-# -------------------------------
-landsat_records = []
-if untarred:
-    # Loop over folders
-    scene_dirs = [os.path.join(input_root, d) for d in os.listdir(input_root) if os.path.isdir(os.path.join(input_root, d))]
-    for scene_dir in scene_dirs:
-        date, time = extract_landsat_datetime_from_folder(scene_dir)
-        if date:
-            landsat_records.append({
-                "scene": os.path.basename(scene_dir),
-                "date": date,
-                "time": time
-            })
-else:
-    # Loop over tar files
-    tar_files = [os.path.join(input_root, f) for f in os.listdir(input_root) if f.endswith(".tar")]
-    for tar_path in tar_files:
-        date, time = extract_landsat_datetime_from_tar(tar_path)
-        if date:
-            landsat_records.append({
-                "scene": os.path.basename(tar_path).replace(".tar", ""),  # strip ".tar"
-                "date": date,
-                "time": time
-            })
-
-landsat_df = pd.DataFrame(landsat_records)
-landsat_df["date"] = pd.to_datetime(landsat_df["date"])
-
-# -------------------------------
-# Step 2. Load AmeriFlux Daily dataset
-# -------------------------------
-flux_df = pd.read_csv(flux_daily_path)
-flux_df["date"] = pd.to_datetime(flux_df["TIMESTAMP"], format="%Y%m%d")
-
-# -------------------------------
-# Step 3. Compute RH (daily)
-# -------------------------------
+# ---------------------------------------
+# Helpers
+# ---------------------------------------
 def compute_rh(Ta, VPD_hPa):
-    """Compute RH (%) from temperature (°C) and vapor pressure deficit (hPa)."""
-    if pd.isna(Ta) or pd.isna(VPD_hPa):
-        return np.nan
-    VPD_kPa = VPD_hPa / 10.0  # convert hPa → kPa
-    es = 0.6108 * np.exp((17.27 * Ta) / (Ta + 237.3))  # saturation vapor pressure (kPa)
+    if pd.isna(Ta) or pd.isna(VPD_hPa): return np.nan
+    VPD_kPa = VPD_hPa / 10.0
+    es = 0.6108 * np.exp((17.27 * Ta) / (Ta + 237.3))
     rh = 100 * (1 - VPD_kPa / es)
     return max(min(rh, 100), 0)
 
-flux_df["RH"] = flux_df.apply(lambda row: compute_rh(row["TA_F"], row["VPD_F"]), axis=1)
-flux_df["RH"] = flux_df["RH"].round(3)
+def extract_landsat_datetime_from_tar(tar_path):
+    date, time = None, None
+    with tarfile.open(tar_path, "r") as tar:
+        mtl_file = [m for m in tar.getnames() if m.endswith("_MTL.txt")]
+        if not mtl_file: return None, None
+        f = tar.extractfile(mtl_file[0])
+        if f is None: return None, None
+        content = f.read().decode("utf-8")
+        dm = re.search(r"DATE_ACQUIRED\s=\s(.*)", content)
+        tm = re.search(r"SCENE_CENTER_TIME\s=\s(.*)", content)
+        date = dm.group(1).strip() if dm else None
+        time = tm.group(1).strip().replace("Z","") if tm else None
+    return date, time
 
-subset_flux = flux_df[["date", "TA_F", "RH", "WS_F", "SW_IN_F"]]
+# ---------------------------------------
+# Process each site
+# ---------------------------------------
+with pd.ExcelWriter(out_excel, engine="xlsxwriter") as writer:
+    for site in sites:
+        name           = site["name"]
+        flux_daily     = site["flux_daily_path"]
+        flux_halfhour  = site["flux_halfhourly_path"]
+        input_root     = site.get("input_root", "")
+        output_root    = site["output_root"]
+        target_time    = site["target_time"]
 
-# -------------------------------
-# Step 4. Merge Landsat with Daily Flux
-# -------------------------------
-merged_df = pd.merge(landsat_df, subset_flux, on="date", how="left")
-merged_df = merged_df.rename(columns={
-    "TA_F": "Temp_24",
-    "RH": "RH_24",
-    "WS_F": "Wind_24",
-    "SW_IN_F": "Rs_24"
-})
+        print(f"Processing {name} using scene folders in: {output_root}")
 
-# Round numeric values
-for col in ["Temp_24", "RH_24", "Wind_24", "Rs_24"]:
-    merged_df[col] = merged_df[col].round(3)
+        # ============================================================
+        # A) Build Landsat scene table FROM OUTPUT FOLDERS (preferred)
+        # ============================================================
+        landsat_records = []
+        for scene_dir in glob.glob(os.path.join(output_root, "*")):
+            if not os.path.isdir(scene_dir):
+                continue
+            scene = os.path.basename(scene_dir)
+            # Expect standard Landsat naming: LC08_L1TP_XXX_YYYYMMDD_...
+            # date token is index 3 (0-based)
+            toks = scene.split("_")
+            if len(toks) >= 4:
+                dt = pd.to_datetime(toks[3], format="%Y%m%d", errors="coerce")
+            else:
+                dt = pd.NaT
+            landsat_records.append({
+                "scene": scene,
+                "date": dt,
+                "time": target_time.strftime("%H:%M:%S")  # stamp site-specific overpass time
+            })
 
-# -------------------------------
-# Step 5. Load AmeriFlux Half-Hourly dataset for Instantaneous 18:30
-# -------------------------------
-hh_df = pd.read_csv(flux_halfhourly_path)
-hh_df["datetime"] = pd.to_datetime(hh_df["TIMESTAMP_START"], format="%Y%m%d%H%M")
-hh_df["date"] = hh_df["datetime"].dt.date
-hh_df["time"] = hh_df["datetime"].dt.time
+        landsat_df = pd.DataFrame(landsat_records).dropna(subset=["date"]).copy()
 
-# Fix RH if missing
-hh_df["RH_fixed"] = hh_df["RH"]
-mask_invalid = (hh_df["RH"] < 0) | (hh_df["RH"].isna())
-hh_df.loc[mask_invalid, "RH_fixed"] = hh_df.loc[mask_invalid].apply(
-    lambda row: compute_rh(row["TA_F"], row["VPD_F"]), axis=1
-)
+        # ============================================================
+        # (Optional) Previous TAR-based method — kept for fallback
+        # ============================================================
+        # tar_files = [os.path.join(input_root, f) for f in os.listdir(input_root) if f.endswith(".tar")]
+        # landsat_records = []
+        # for tar_path in tar_files:
+        #     date_str, time_str = extract_landsat_datetime_from_tar(tar_path)
+        #     if date_str:
+        #         landsat_records.append({
+        #             "scene": os.path.basename(tar_path).replace(".tar",""),
+        #             "date": pd.to_datetime(date_str),
+        #             "time": time_str
+        #         })
+        # landsat_df = pd.DataFrame(landsat_records)
 
-# Select 18:30
-target_time = pd.to_datetime("18:30:00").time()
-hh_overpass = hh_df[hh_df["datetime"].dt.time == target_time].copy()
-hh_overpass["date"] = pd.to_datetime(hh_overpass["datetime"].dt.date)
+        # ---------------------------------------
+        # Daily flux
+        # ---------------------------------------
+        flux_df = pd.read_csv(flux_daily)
+        flux_df["date"] = pd.to_datetime(flx := flux_df["TIMESTAMP"], format="%Y%m%d")
+        flux_df["RH"] = flux_df.apply(lambda r: compute_rh(r["TA_F"], r["VPD_F"]), axis=1).round(3)
 
-hh_overpass = hh_overpass[["date", "TA_F", "RH_fixed", "WS_F", "SW_IN_F"]]
+        subset_flux = flux_df[["date","TA_F","RH","WS_F","SW_IN_F"]].copy()
+        merged_df = pd.merge(landsat_df, subset_flux, on="date", how="left")
+        merged_df = merged_df.rename(columns={
+            "TA_F":"Temp_24","RH":"RH_24","WS_F":"Wind_24","SW_IN_F":"Rs_24"
+        })
+        for c in ["Temp_24","RH_24","Wind_24","Rs_24"]:
+            merged_df[c] = merged_df[c].round(3)
 
-# Rename
-hh_overpass = hh_overpass.rename(columns={
-    "TA_F": "Temp_inst",
-    "RH_fixed": "RH_inst",
-    "WS_F": "Wind_inst",
-    "SW_IN_F": "Rs_inst"
-})
+        # ---------------------------------------
+        # Half-hourly flux @ site-specific target_time
+        # ---------------------------------------
+        hh_df = pd.read_csv(flux_halfhour)
+        hh_df["datetime"] = pd.to_datetime(hh_df["TIMESTAMP_START"], format="%Y%m%d%H%M")
+        hh_df["RH_fixed"] = hh_df["RH"]
+        mask_invalid = (hh_df["RH"] < 0) | (hh_df["RH"].isna())
+        hh_df.loc[mask_invalid,"RH_fixed"] = hh_df.loc[mask_invalid].apply(
+            lambda r: compute_rh(r["TA_F"], r["VPD_F"]), axis=1
+        )
 
-for col in ["Temp_inst", "RH_inst", "Wind_inst", "Rs_inst"]:
-    hh_overpass[col] = hh_overpass[col].round(3)
+        hh_overpass = hh_df[hh_df["datetime"].dt.time == target_time].copy()
+        hh_overpass["date"] = pd.to_datetime(hh_overpass["datetime"].dt.date)
+        hh_overpass = hh_overpass.rename(columns={
+            "TA_F":"Temp_inst","RH_fixed":"RH_inst","WS_F":"Wind_inst","SW_IN_F":"Rs_inst"
+        })
+        hh_overpass = hh_overpass[["date","Temp_inst","RH_inst","Wind_inst","Rs_inst"]].round(3)
 
-# -------------------------------
-# Step 6. Merge Landsat with Instantaneous Flux
-# -------------------------------
-merged_df = pd.merge(merged_df, hh_overpass, on="date", how="left")
+        merged_df = pd.merge(merged_df, hh_overpass, on="date", how="left")
 
-# -------------------------------
-# Step 7. Add InputMap, OutputMap, and QualityMask columns
-# -------------------------------
-merged_df["InputMap"] = merged_df["scene"].apply(
-    lambda s: os.path.join(input_root, s)
-)
-merged_df["OutputMap"] = merged_df["scene"].apply(
-    lambda s: os.path.join(output_root, s)
-)
-merged_df["QualityMask"] = merged_df["scene"].apply(
-    lambda s: os.path.join(input_root, s, f"{s}_QA_PIXEL.TIF")
-)
+        # ---------------------------------------
+        # Paths (keep if useful)
+        # ---------------------------------------
+        merged_df["InputMap"]  = merged_df["scene"].apply(lambda s: os.path.join(input_root, s))
+        merged_df["OutputMap"] = merged_df["scene"].apply(lambda s: os.path.join(output_root, s))
+        merged_df["QualityMask"] = merged_df["scene"].apply(
+            lambda s: os.path.join(input_root, s, f"{s}_QA_PIXEL.TIF")
+        )
 
-# # -------------------------------
-# # Step 8. Add placeholder Transm_24 (if needed)
-# # -------------------------------
-# if "Transm_24" not in merged_df.columns:
-#     merged_df["Transm_24"] = np.nan
+        # ---------------------------------------
+        # Energy balance terms @ target_time
+        # ---------------------------------------
+        hh_energy = hh_df[hh_df["datetime"].dt.time == target_time].copy()
+        hh_energy["date"] = pd.to_datetime(hh_energy["datetime"].dt.date)
+        energy_cols = ["date","NETRAD","G_F_MDS","H_F_MDS","LE_F_MDS"]
+        energy_overpass = hh_energy[energy_cols].replace(-9999, np.nan).copy()
+        energy_overpass["Bowen_ratio"] = energy_overpass["H_F_MDS"] / energy_overpass["LE_F_MDS"]
+        energy_overpass["EF"] = energy_overpass["LE_F_MDS"] / (energy_overpass["NETRAD"] - energy_overpass["G_F_MDS"])
+        energy_overpass["EF"] = energy_overpass["EF"].clip(0.0, 1.8)
 
-# -------------------------------
-# Step 9. Reorder columns
-# -------------------------------
-col_order = [
-    "scene", "date", "time",          # keep identifiers first
-    "Temp_inst", "Temp_24",
-    "RH_inst", "RH_24",
-    "Wind_inst", "Wind_24",
-    "Rs_24", "Rs_inst",
-    "InputMap", "OutputMap", "QualityMask"
-]
+        energy_df = pd.merge(landsat_df[["scene","date","time"]], energy_overpass, on="date", how="left")
 
-merged_df = merged_df[[c for c in col_order if c in merged_df.columns]]
+        # ---------------------------------------
+        # Save per-site sheets
+        # ---------------------------------------
+        merged_df.to_excel(writer, sheet_name=f"{name}_Meteo", index=False)
+        energy_df.to_excel(writer, sheet_name=f"{name}_EnergyFluxes", index=False)
 
-# -------------------------------
-# Step 10. Save results
-# -------------------------------
-merged_df.to_csv(out_csv, index=False)
-print(f"Saved results to {out_csv}")
-print(merged_df.head())
+print(f"✅ Multi-site tower extraction saved to {out_excel}")
 

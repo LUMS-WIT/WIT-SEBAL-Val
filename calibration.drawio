@@ -1,0 +1,77 @@
+<mxfile host="Electron" modified="2025-09-03T10:25:06.430Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.8.2 Chrome/114.0.5735.289 Electron/25.8.1 Safari/537.36" etag="VSXSYR7rj6tdTbynLp16" version="21.8.2" type="device">
+  <diagram name="Page-1" id="1NaF0kXTkdeA8h77EULQ">
+    <mxGraphModel dx="1114" dy="664" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-2" target="qkEilpXJxQX9BKYHJlGg-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-2" value="sebal_extraction.py" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="180" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-3" target="qkEilpXJxQX9BKYHJlGg-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-3" value="ec_flux_extraction.py" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="300" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-4" target="qkEilpXJxQX9BKYHJlGg-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-4" target="qkEilpXJxQX9BKYHJlGg-3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="60" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-4" value="SEBAL_out" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="30" y="110" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-6" target="qkEilpXJxQX9BKYHJlGg-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-6" value="Ameriflux data" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="30" y="390" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-9" target="qkEilpXJxQX9BKYHJlGg-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-9" target="qkEilpXJxQX9BKYHJlGg-18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-9" value="merged_flux.py" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-12" value="&lt;div style=&quot;color: rgb(204, 204, 204); background-color: rgb(31, 31, 31); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px;&quot;&gt;sebal_extract_multisite.xlsx&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="310" y="160" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-14" value="&lt;div style=&quot;color: rgb(204, 204, 204); background-color: rgb(31, 31, 31); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px;&quot;&gt;&lt;div style=&quot;line-height: 19px;&quot;&gt;landsat_meteo_energy_multisite.xlsx&lt;/div&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="330" y="360" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-15" target="qkEilpXJxQX9BKYHJlGg-20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-15" value="calibrations_final.py" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="570" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-17" value="&lt;div style=&quot;color: rgb(204, 204, 204); background-color: rgb(31, 31, 31); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; line-height: 19px;&quot;&gt;&lt;div style=&quot;line-height: 19px;&quot;&gt;merged_calibration_multisite.csv&quot;&lt;/div&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="450" y="220" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="qkEilpXJxQX9BKYHJlGg-18" target="qkEilpXJxQX9BKYHJlGg-22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-18" value="calibrated_final.py" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="410" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-20" value="alpha and beta" style="ellipse;whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="730" y="240" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="qkEilpXJxQX9BKYHJlGg-22" value="results on calibrated data" style="ellipse;whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="400" width="80" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

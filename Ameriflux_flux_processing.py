@@ -1,6 +1,20 @@
-import pandas as pd
-import numpy as np
 
+"""
+Extra File
+
+Load AmeriFlux daily CSV, clean it, and subset to a date range and desired variables. 
+This data is meant for SEBAL (meteo) as well as for calibrations (energy modules)
+
+Returns
+-------
+pd.DataFrame
+    Cleaned dataframe indexed by DATE with the selected variables.
+
+Raises
+------
+ValueError
+    If none of the expected key variables are present in the CSV.
+"""
 
 
 import pandas as pd
