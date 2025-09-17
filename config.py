@@ -1,6 +1,9 @@
 # configuration file consisting of variables and paths
 
+# ------------------------------- #
 # STEP1 Variables 
+# ------------------------------- #
+
 ROW_PATH = '149039'
 SAVE_PLOT = False
 RESCALING = True
@@ -15,7 +18,9 @@ VALIDATION_FOLDER = fr'.\validations\validation_points\{ROW_PATH}_{TEMPORAL_WIN}
 IMAGES_FOLDER = fr'.\validations\figs\{ROW_PATH}'
 METADATA_FILE_PATH = fr'.\validations\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
 
-# STEP 2 varaibles
+# ------------------------------- #
+# STEP 2 variables
+# ------------------------------- #
 
 COMBINE_VALIDATIONS = True
 MASTER_FOLDER = fr'.\validations\validation_points'

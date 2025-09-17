@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import openpyxl
-import os, re, csv, datetime, fnmatch
+import os, re, csv, datetime, fnmatch, shutil
 from osgeo import gdal
 import osgeo.osr as osr
 import metrics
@@ -254,6 +254,7 @@ class SebalSoilMoistureData:
         
         self.pattern = 'Top_soil_moisture'
         files = [f for f in os.listdir(self.folder_path) if f.endswith(".tif") and self.pattern in f]
+        
         # taking a raster file for extent coverage check
         if len(files)>0:
             file = files[0]
@@ -774,3 +775,34 @@ def validations_gpi_adv(folder_path, threshold= -0.5, alpha=0.05):
 
     
     return metrics_dict, observations
+
+
+def copy_tif_files(root_dir, destination_dir, pattern='Top_soil_moisture'):
+    """Copy TIFF files from the root directory to the destination directory.
+    Used for validation routine.
+    Use it after running SEBAL model to copy all the tif files to a single folder for validation.
+
+    Args:
+        root_dir (_str_): path to the root directory containing subdirectories with TIFF files.
+        destination_dir (_str_): path to the destination directory where TIFF files will be copied.
+        pattern (str, optional): pattern to match in the TIFF file names. Defaults to 'Top_soil_moisture'.
+    """
+    # Ensure destination directory exists
+    os.makedirs(destination_dir, exist_ok=True)
+    
+    # Walk through all subdirectories and files in the root directory
+    for subdir, _, files in os.walk(root_dir):
+        for file in files:
+            if file.endswith(".tif") and pattern in file:
+                src_path = os.path.join(subdir, file)
+                dest_path = os.path.join(destination_dir, file)
+                shutil.copy(src_path, dest_path)
+                print(f"Copied: {file}")
+
+# # Example usage
+# ROW_PATH = '149039'
+# source = fr'D:/SEBAL/datasets/SEBAL_out/LBDC_exp/{ROW_PATH}/'
+# destination = fr'D:/SEBAL/datasets/validation/LBDC_validations/{ROW_PATH}/'
+# pattern = 'Top_soil_moisture'
+
+# copy_tif_files(source, destination, pattern)

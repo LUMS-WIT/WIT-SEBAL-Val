@@ -114,6 +114,7 @@ def validations():
     print(stats_results)
     plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
     plot_metric_with_ci(metrics_dict, metric='ubrmsd')
+    plot_metric_with_ci(metrics_dict, metric='bias')
 
     df = pd.read_excel(METADATA_FILE_PATH)
     df['gpi'] = df['gpi'].astype(str)
@@ -161,11 +162,13 @@ def validations():
 if __name__ == "__main__":
     
     print('---------------------------------------------')
+    print('------------  Step : 1 ----------------------')
     print('------- Generating overlaping gpi -----------')
     print('---------------------------------------------')
     # generate_overalps()
 
     print('---------------------------------------------')
+    print('------------  Step : 2 ----------------------')
     print('------- Performing validations --------------')
     print('---------------------------------------------')
     validations()

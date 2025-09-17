@@ -19,7 +19,7 @@ file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
 file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
-param = 'overlaps'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+param = 'mse'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
 
 # Function to define custom color maps
 def get_status_colors():
@@ -169,8 +169,14 @@ gl2.xlabel_style = {'size': 12, 'color': 'gray'}
 gl2.ylabel_style = {'size': 12, 'color': 'gray'}
 
 # Plot the scatter points
-sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=-0.04, vmax=0.04)
-#sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
+if param == 'overlaps':
+    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
+elif param == 'bias' or param == 'mse':
+    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=-0.025, vmax=0.025)
+elif param == 'ubrmsd':
+    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=0.04)
+else:
+    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree())
 
 
 # Add a color bar
