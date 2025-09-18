@@ -24,6 +24,8 @@ METADATA_FILE_PATH = fr'.\validations\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx
 
 COMBINE_VALIDATIONS = True
 MASTER_FOLDER = fr'.\validations\validation_points'
+OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
+
 
 if COMBINE_VALIDATIONS:
     INPUT_FOLDER= MASTER_FOLDER

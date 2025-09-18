@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import openpyxl
+import pandas as pd
 import os, re, csv, datetime, fnmatch, shutil
 from osgeo import gdal
 import osgeo.osr as osr
@@ -238,7 +239,7 @@ class SebalSoilMoistureData:
         folder_path (str): Path to the folder containing raster files.
     """
 
-    def __init__(self, folder_path):
+    def __init__(self, folder_path, pattern='Top_soil_moisture'):
         """
         Initializes the SebalData object.
         Args:
@@ -252,7 +253,7 @@ class SebalSoilMoistureData:
             raise ValueError(f"Invalid folder path: {folder_path}")
         self.folder_path = folder_path
         
-        self.pattern = 'Top_soil_moisture'
+        self.pattern = pattern
         files = [f for f in os.listdir(self.folder_path) if f.endswith(".tif") and self.pattern in f]
         
         # taking a raster file for extent coverage check
@@ -598,10 +599,17 @@ def plot_box_and_whiskers(metrics_dict, filename= None, save= False):
                 
     # ax.set_title('Box and Whisker Plot for Metrics')
     ax.set_ylabel('Metric Values', fontsize = 15)
-    ax.set_xlabel('Metrics', fontsize = 15)
-    metrics_names = ['Bias \n (m³/m³)', 'mse \n (m³/m³)', 'Ubrmsd \n (m³/m³)', 'pearson r', 'spearman rho']
+    # ax.set_xlabel('Metrics', fontsize = 15)
+    # metrics_names = ['Bias \n (m³/m³)', 'MSE \n (m³/m³)', 'ubRMSD \n (m³/m³)', 'pearson \n r', 'spearman \n rho']
+    metrics_names = [
+    'Bias \n (m³/m³)',
+    'MSE \n (m³/m³)',
+    'ubRMSD \n (m³/m³)',
+    "Pearson's\nr",
+    "Spearman's\nρ"
+    ]
     # ax.set_xticklabels([key for key in metrics_dict.keys() if key != 'gpi' and not key.endswith('_cl') and not key.endswith('_cu')])
-    ax.set_xticklabels([metric for metric in metrics_names], fontsize = 15)
+    ax.set_xticklabels([metric for metric in metrics_names], fontsize = 12)
 
     # Add horizontal grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
@@ -643,27 +651,39 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
     bp = ax.boxplot(data_to_plot, showfliers=False) #, notch=True, patch_artist=True)
 
     # Annotating the medians
-    for i, line in enumerate(bp['medians']):
-        x, y = line.get_xydata()[1]  # Top of median line
-        ax.annotate(f'{y:.3f}', xy=(x, y), xytext=(0, 5),
-                    textcoords='offset points', ha='right', va='bottom')
+    # for i, line in enumerate(bp['medians']):
+    #     x, y = line.get_xydata()[1]  # Top of median line
+    #     ax.annotate(f'{y:.3f}', xy=(x, y), xytext=(0, 5),
+    #                 textcoords='offset points', ha='right', va='bottom')
 
+    for i, line in enumerate(bp['medians']):
+        (x_left, y), (x_right, _) = line.get_xydata()  # right end of median line
+        ax.annotate(
+            f'{y:.3f}',
+            xy=(x_right, y),
+            xytext=(6, 0),                 # shift 6 points to the right
+            textcoords='offset points',
+            ha='left',                     # text grows to the right
+            va='center'
+        )
     # Adding CI annotations inside the graph
     annotation_text = (
         f"cl: Lower Confidence Interval\n"
         f"cu: Upper Confidence Interval"
     )
     ax.text(0.05, 0.95, annotation_text, transform=ax.transAxes,
-            fontsize=15, color='black', ha='left', va='top')
+            fontsize=12, color='black', ha='left', va='top')
 
     # Set title and labels
-    ax.set_title(f'Plot for {metric.upper()} with Confidence Intervals', fontsize=15)
     if metric == 'bias':
-        ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=15)
-    else:
-        ax.set_ylabel('Unbiased root-mean-square deviation in m³/m³', fontsize=15)
+        ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=12)
+        ax.set_title(f'Plot for Bias with confidence intervals', fontsize=15)
+    else: 
+        ax.set_ylabel('Unbiased root-mean-square deviation in m³/m³', fontsize=12)
+        ax.set_title(f'Plot for ubRMSD with confidence intervals', fontsize=15)
+
     ax.set_xticks([1, 2, 3])
-    ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'], fontsize=15)
+    ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'], fontsize=12)
 
     # Add grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
@@ -677,8 +697,211 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
         print(f"Plot saved as {filename}")
 
 
+def validations_gpi_adv(folder_path, threshold=-0.47, alpha=0.05):
+    """
+    Validates GPI metrics and calculates confidence intervals for ubrmsd.
+    Also returns the filtered paired values (sebal_sm, wit_sm) used for metrics.
 
-def validations_gpi_adv(folder_path, threshold= -0.5, alpha=0.05):
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing validation files.
+    threshold : float, optional
+        Threshold for correlation metrics (default is -0.47).
+    alpha : float, optional
+        Confidence level for ubrmsd CI (default is 0.05).
+
+    Returns
+    -------
+    metrics_dict : dict
+        Dictionary containing calculated metrics, including CI for ubrmsd.
+    observations : int
+        Total number of observations (after filtering).
+    paired_values : pandas.DataFrame
+        Long-format DataFrame with columns [gpi, sebal_sm, wit_sm]
+        containing only the values that passed the A/B filters.
+    """
+    metrics_dict = {
+        'gpi': [],
+        'bias_cl': [],
+        'bias': [],
+        'bias_cu': [],
+        'mse': [],
+        'ubrmsd_cl': [],
+        'ubrmsd': [],
+        'ubrmsd_cu': [],
+        'p_rho': [],
+        's_rho': []
+    }
+
+    # Collect final paired values used for plotting
+    paired_records = []
+
+    if COMBINE_VALIDATIONS:
+        specific_folder_name = f'*_{TEMPORAL_WIN}'
+        files = combine_val_files(INPUT_FOLDER, specific_folder_name)
+        total_files = len(files)
+        print(f"Reading {total_files} files...")
+    else:
+        files = [os.path.join(folder_path, f) for f in os.listdir(folder_path)
+                 if f.endswith(".xlsx") and 'witgpi' in f]
+        total_files = len(files)
+        print(f"Reading {total_files} files...")
+
+    pattern = r'witgpi_([^_]+)_'
+    observations = 0
+
+    for file in files:
+        wit_sm, sebal_sm = extract_sm_data(file)
+
+        # Pairwise NaN removal
+        wit_sm = np.asarray(wit_sm, dtype=float)
+        sebal_sm = np.asarray(sebal_sm, dtype=float)
+        valid_mask = np.isfinite(wit_sm) & np.isfinite(sebal_sm)
+        wit_sm_f = wit_sm[valid_mask]
+        sebal_sm_f = sebal_sm[valid_mask]
+
+        gpi_match = re.search(pattern, file)
+        gpi = gpi_match.group(1) if gpi_match else "unknown"
+
+        # Need at least 2 points for correlations
+        if len(wit_sm_f) > 1:
+            bias = metrics.bias(sebal_sm_f, wit_sm_f)
+            mse, mse_corr, mse_bias, mse_var = metrics.mse(sebal_sm_f, wit_sm_f)
+            ubrmsd = metrics.ubrmsd(sebal_sm_f, wit_sm_f)
+            p_rho = metrics.pearson_r(sebal_sm_f, wit_sm_f)
+            s_rho = metrics.spearman_r(sebal_sm_f, wit_sm_f)
+
+            # Confidence intervals
+            ubrmsd_cl, ubrmsd_cu = metrics.ubrmsd_ci(sebal_sm_f, wit_sm_f, ubrmsd, alpha)
+            bias_cl, bias_cu = metrics.bias_ci(sebal_sm_f, wit_sm_f, ubrmsd, alpha)
+
+            # A: p_rho >= threshold and s_rho >= threshold
+            # B: (p_rho < threshold or s_rho < threshold) and len(wit_sm_f) > 10
+            if (p_rho >= threshold and s_rho >= threshold) or \
+               ((p_rho < threshold or s_rho < threshold) and len(wit_sm_f) > 10):
+
+                # Count observations and append metrics
+                observations += len(wit_sm_f)
+                metrics_dict['gpi'].append(gpi)
+                metrics_dict['bias_cl'].append(bias_cl)
+                metrics_dict['bias'].append(bias)
+                metrics_dict['bias_cu'].append(bias_cu)
+                metrics_dict['mse'].append(mse)
+                metrics_dict['ubrmsd_cl'].append(ubrmsd_cl)
+                metrics_dict['ubrmsd'].append(ubrmsd)
+                metrics_dict['ubrmsd_cu'].append(ubrmsd_cu)
+                metrics_dict['p_rho'].append(p_rho)
+                metrics_dict['s_rho'].append(s_rho)
+
+                # Store the paired values used for these metrics
+                paired_records.extend(
+                    {'gpi': gpi, 'sebal_sm': s, 'wit_sm': w}
+                    for s, w in zip(sebal_sm_f, wit_sm_f)
+                )
+
+    paired_values = pd.DataFrame(paired_records, columns=['gpi', 'sebal_sm', 'wit_sm'])
+    return metrics_dict, observations, paired_values
+
+def plot_paired(paired_values, stats_results):
+    
+    # Assumes you already have:
+    # - paired_values: DataFrame with columns ['gpi', 'sebal_sm', 'wit_sm'] after filters
+    # - stats_results: dict with mean values e.g. stats_results['bias']['mean'], ['mse']['mean'], ['p_rho']['mean']
+    # - observations: total N after filtering (if not available, we fall back to len(paired_values))
+
+    # Extract paired arrays for plotting
+    x = paired_values['sebal_sm'].to_numpy(dtype=float)  # SEBAL
+    y = paired_values['wit_sm'].to_numpy(dtype=float)    # WIT
+
+    if x.size == 0 or y.size == 0:
+        raise ValueError("No paired data available after filtering to plot.")
+
+    # Axis limits and 1:1 line
+    min_v = np.nanmin([x.min(), y.min()])
+    max_v = np.nanmax([x.max(), y.max()])
+    pad = 0.02 * (max_v - min_v) if np.isfinite(max_v - min_v) else 0.0
+
+    plt.figure(figsize=(6.5, 6.5))
+    plt.scatter(x, y, s=12, alpha=0.5, edgecolor='none', label='Pairs')
+    plt.plot([min_v, max_v], [min_v, max_v], linestyle='--', color='gray', linewidth=1, label='1:1')
+
+    # Labels, limits, aspect
+    plt.xlabel('SEBAL-derived Soil Moisture (m³/m³)')
+    plt.ylabel('WITSMS Soil Moisture (m³/m³)')
+    plt.title('SEBAL-derived vs WITSMS-Network Soil Moisture')
+    plt.xlim(min_v - pad, max_v + pad)
+    plt.ylim(min_v - pad, max_v + pad)
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.grid(True, alpha=0.3)
+    plt.legend(frameon=False, loc='lower right')
+
+    # Use precomputed means from stats_results
+    mean_bias = stats_results['bias']['mean']
+    mean_mse = stats_results['mse']['mean']
+    mean_p_rho = stats_results['p_rho']['mean']
+    mean_ubrmsd = stats_results['ubrmsd']['mean']
+
+    # Derive display metrics from the precomputed means
+    r2_disp = mean_p_rho**2 if mean_p_rho is not None else np.nan
+    r_disp = mean_p_rho if mean_p_rho is not None else np.nan
+    rmse_disp = np.sqrt(mean_mse) if mean_mse is not None else np.nan
+    bias_disp = mean_bias if mean_bias is not None else np.nan
+
+    # Determine N from precomputed total if available; otherwise use paired count
+    N = locals().get('observations', len(paired_values))
+
+    # Annotate on plot
+    textstr = (
+        f"R = {r_disp:.3f}\n"
+        f"RMSE = {rmse_disp:.3f} m³/m³\n"
+        f"ubRMSE = {mean_ubrmsd:.3f} m³/m³\n"
+        f"Bias = {bias_disp:.3f} m³/m³\n"
+        f"N = {N}"
+    )
+    plt.gca().text(
+        0.02, 0.98, textstr,
+        transform=plt.gca().transAxes,
+        va='top', ha='left',
+        bbox=dict(facecolor='white', edgecolor='gray', alpha=0.9)
+    )
+
+    plt.tight_layout()
+    plt.show()
+    return
+
+def copy_tif_files(root_dir, destination_dir, pattern='Top_soil_moisture'):
+    """Copy TIFF files from the root directory to the destination directory.
+    Used for validation routine.
+    Use it after running SEBAL model to copy all the tif files to a single folder for validation.
+
+    Args:
+        root_dir (_str_): path to the root directory containing subdirectories with TIFF files.
+        destination_dir (_str_): path to the destination directory where TIFF files will be copied.
+        pattern (str, optional): pattern to match in the TIFF file names. Defaults to 'Top_soil_moisture'.
+    """
+    # Ensure destination directory exists
+    os.makedirs(destination_dir, exist_ok=True)
+    
+    # Walk through all subdirectories and files in the root directory
+    for subdir, _, files in os.walk(root_dir):
+        for file in files:
+            if file.endswith(".tif") and pattern in file:
+                src_path = os.path.join(subdir, file)
+                dest_path = os.path.join(destination_dir, file)
+                shutil.copy(src_path, dest_path)
+                print(f"Copied: {file}")
+
+# # Example usage
+# ROW_PATH = '149039'
+# source = fr'D:/SEBAL/datasets/SEBAL_out/LBDC_exp/{ROW_PATH}/'
+# destination = fr'D:/SEBAL/datasets/validation/LBDC_validations/{ROW_PATH}/'
+# pattern = 'Top_soil_moisture'
+
+# copy_tif_files(source, destination, pattern)
+
+'''
+def validations_gpi_adv(folder_path, threshold= -0.47, alpha=0.05):
     """
     Validates GPI metrics and calculates confidence intervals for ubrmsd.
 
@@ -776,33 +999,4 @@ def validations_gpi_adv(folder_path, threshold= -0.5, alpha=0.05):
     
     return metrics_dict, observations
 
-
-def copy_tif_files(root_dir, destination_dir, pattern='Top_soil_moisture'):
-    """Copy TIFF files from the root directory to the destination directory.
-    Used for validation routine.
-    Use it after running SEBAL model to copy all the tif files to a single folder for validation.
-
-    Args:
-        root_dir (_str_): path to the root directory containing subdirectories with TIFF files.
-        destination_dir (_str_): path to the destination directory where TIFF files will be copied.
-        pattern (str, optional): pattern to match in the TIFF file names. Defaults to 'Top_soil_moisture'.
-    """
-    # Ensure destination directory exists
-    os.makedirs(destination_dir, exist_ok=True)
-    
-    # Walk through all subdirectories and files in the root directory
-    for subdir, _, files in os.walk(root_dir):
-        for file in files:
-            if file.endswith(".tif") and pattern in file:
-                src_path = os.path.join(subdir, file)
-                dest_path = os.path.join(destination_dir, file)
-                shutil.copy(src_path, dest_path)
-                print(f"Copied: {file}")
-
-# # Example usage
-# ROW_PATH = '149039'
-# source = fr'D:/SEBAL/datasets/SEBAL_out/LBDC_exp/{ROW_PATH}/'
-# destination = fr'D:/SEBAL/datasets/validation/LBDC_validations/{ROW_PATH}/'
-# pattern = 'Top_soil_moisture'
-
-# copy_tif_files(source, destination, pattern)
+'''
