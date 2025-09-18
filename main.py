@@ -11,10 +11,12 @@ import pandas as pd
 from utils import SoilMoistureData, SebalSoilMoistureData
 from utils import remove_nan_entries, save_to_excel, save_metadata, save_to_plot
 from utils import validations_gpi, validations_gpi_adv, compute_statistics, plot_box_and_whiskers, plot_metric_with_ci
+from utils import plot_paired
 from scaling import scaling, temporal_matching
 from sms_calibration import sms_calibrations
+import matplotlib.pyplot as plt
 
-from config import ROW_PATH, WIT_SMS_PATH, RASTER_FOLDER_PATH, TEMPORAL_WIN, \
+from config import OUTLIER_THRESHOLD, ROW_PATH, WIT_SMS_PATH, RASTER_FOLDER_PATH, TEMPORAL_WIN, \
       VALIDATION_FOLDER, RESCALING, SAVE_PLOT, IMAGES_FOLDER, METADATA_FILE_PATH
 
 from config import COMBINE_VALIDATIONS, INPUT_FOLDER, OUTPUT_FILE, PLOT_OUTPUT_FILE
@@ -34,7 +36,7 @@ def generate_overalps():
     soil_moisture_data = SoilMoistureData(WIT_SMS_PATH)
     soil_moisture_data.read_data()
     metadata = soil_moisture_data.get_metadata()
-    raster_data = SebalSoilMoistureData(RASTER_FOLDER_PATH)
+    raster_data = SebalSoilMoistureData(RASTER_FOLDER_PATH, pattern='Root_zone_moisture')
 
 
     validation_metadata = []
@@ -107,7 +109,7 @@ def validations():
     # ----------------------------------------------------------------------
 
     # metrics_dict, num_of_obs = validations_gpi(INPUT_FOLDER)
-    metrics_dict, num_of_obs = validations_gpi_adv(INPUT_FOLDER)
+    metrics_dict, num_of_obs, paired_values  = validations_gpi_adv(INPUT_FOLDER, threshold= OUTLIER_THRESHOLD)
     stats_results = compute_statistics(metrics_dict)
     print('------------- results for gpi based metrics ----------------')
     print('Number of Observatoions N:', num_of_obs)
@@ -115,6 +117,7 @@ def validations():
     plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
     plot_metric_with_ci(metrics_dict, metric='ubrmsd')
     plot_metric_with_ci(metrics_dict, metric='bias')
+
 
     df = pd.read_excel(METADATA_FILE_PATH)
     df['gpi'] = df['gpi'].astype(str)
@@ -150,12 +153,13 @@ def validations():
     print("Validations saved to", OUTPUT_FILE)
     plot_file_name = PLOT_OUTPUT_FILE
 
-
     # print('------------- results for combined metrics ----------------')
     # metrics_dict_, num_of_obs_ = validations(data_folder)
     # print('Number of Observatoions N:', num_of_obs_)
     # print(metrics_dict_)
 
+    plot_paired(paired_values, stats_results)
+    
     return
 
 

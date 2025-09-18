@@ -13,13 +13,16 @@ import cartopy.feature as cfeature
 import matplotlib.colors as cl
 import pandas as pd
 import matplotlib.patches as mpatches
+from config import OUTLIER_THRESHOLD
 
 # setup the paths for generated results files
 file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
 file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
-param = 'mse'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+param = 'overlaps'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+display_extent = False  # True to display the extent box on the full map
+
 
 # Function to define custom color maps
 def get_status_colors():
@@ -95,16 +98,28 @@ metric_names = {
 df1_filtered = df1.dropna(subset=metrics_columns)
 df2_filtered = df2.dropna(subset=metrics_columns)
 
+# Apply additional filters
+df1_filtered_ = df1_filtered[
+    (df1_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df1_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
+    ((df1_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df1_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df1_filtered['overlaps'] > 10)
+]
+
+df2_filtered_ = df2_filtered[
+    (df2_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df2_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
+    ((df2_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df2_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df2_filtered['overlaps'] > 10)
+]
+
 # Combine and select required columns
-df_final = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
+df_final = pd.concat([df1_filtered_, df2_filtered_], ignore_index=True)
 df_final = df_final[['latitude', 'longitude'] + metrics_columns]
+
+print(f'Total Number of sites: {df_final["overlaps"].count()}')
+print(f'Total Number of data points: {df_final["overlaps"].sum()}')
 
 # Extract latitude, longitude, and parameter values
 lats = df_final['latitude'].tolist()
 lons = df_final['longitude'].tolist()
 values = df_final[param].tolist()
-
-print(f'Total Number of sites observed: {len(lons)}')
 
 # Calculate dynamic extent based on data points
 margin = 0.5
@@ -113,35 +128,37 @@ extent = [
     min(lats) - margin, max(lats) + margin
 ]
 
-# Plot 1: Entire map of Pakistan with the extent box
-fig1, ax1 = plt.subplots(figsize=(12, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-ax1.set_extent([60, 80, 20, 40], crs=ccrs.PlateCarree())  # Full map of Pakistan
+if display_extent:
 
-# Add features to the map
-ax1.add_feature(cfeature.COASTLINE)
-ax1.add_feature(cfeature.BORDERS, linestyle=':')
-ax1.add_feature(cfeature.STATES, linestyle=':')
-ax1.add_feature(cfeature.RIVERS)
-ax1.add_feature(cfeature.LAND, edgecolor='black', alpha=0.2)
+    # Plot 1: Entire map of Pakistan with the extent box
+    fig1, ax1 = plt.subplots(figsize=(12, 10), subplot_kw={'projection': ccrs.PlateCarree()})
+    ax1.set_extent([60, 80, 20, 40], crs=ccrs.PlateCarree())  # Full map of Pakistan
 
-# Draw the extent box
-rect = mpatches.Rectangle(
-    (extent[0], extent[2]),  # Bottom-left corner
-    extent[1] - extent[0],  # Width
-    extent[3] - extent[2],  # Height
-    linewidth=2, edgecolor='red', linestyle='--', facecolor='none', transform=ccrs.PlateCarree()
-)
-ax1.add_patch(rect)
+    # Add features to the map
+    ax1.add_feature(cfeature.COASTLINE)
+    ax1.add_feature(cfeature.BORDERS, linestyle=':')
+    ax1.add_feature(cfeature.STATES, linestyle=':')
+    ax1.add_feature(cfeature.RIVERS)
+    ax1.add_feature(cfeature.LAND, edgecolor='black', alpha=0.2)
 
-# Add gridlines
-gl = ax1.gridlines(draw_labels=True, linewidth=1, color='gray', alpha=0.5, linestyle='--')
-gl.top_labels = False
-gl.right_labels = False
-gl.xlabel_style = {'size': 12, 'color': 'gray'}
-gl.ylabel_style = {'size': 12, 'color': 'gray'}
+    # Draw the extent box
+    rect = mpatches.Rectangle(
+        (extent[0], extent[2]),  # Bottom-left corner
+        extent[1] - extent[0],  # Width
+        extent[3] - extent[2],  # Height
+        linewidth=2, edgecolor='red', linestyle='--', facecolor='none', transform=ccrs.PlateCarree()
+    )
+    ax1.add_patch(rect)
 
-# Title for full map
-# ax1.set_title('Full Map of Pakistan with Highlighted Extent', fontsize=14)
+    # Add gridlines
+    gl = ax1.gridlines(draw_labels=True, linewidth=1, color='gray', alpha=0.5, linestyle='--')
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlabel_style = {'size': 12, 'color': 'gray'}
+    gl.ylabel_style = {'size': 12, 'color': 'gray'}
+
+    # Title for full map
+    # ax1.set_title('Full Map of Pakistan with Highlighted Extent', fontsize=14)
 
 # Plot 2: Zoomed-in view
 fig2, ax2 = plt.subplots(figsize=(10, 8), subplot_kw={'projection': ccrs.PlateCarree()})
