@@ -176,14 +176,15 @@ for _, r in site_stats.iterrows():
     plt.annotate(label_, (r["EF_tower_mean"], r["EF_model_mean"]),
                  xytext=(6, 6), textcoords="offset points")
 
-txt_site = (f"RMSE = {rmse_sites:.3f}\n"
-            f"R² = {r2_sites:.3f}")
+# txt_site = (f"RMSE = {rmse_sites:.3f}\n"
+#             f"R² = {r2_sites:.3f}")
+txt_site = (f"RMSE = {rmse_sites:.3f}")
 plt.text(mn + 0.05*(mx-mn), mn + 0.90*(mx-mn), txt_site,
          bbox=dict(boxstyle="round", facecolor="white", alpha=0.85))
 
 plt.xlabel("EF mean (Tower)")
 plt.ylabel("EF mean (Model)")
-plt.title("Site-wise Mean EF ± 1σ")
+plt.title("Site-wise Mean Evaporative Fraction (EF) ± 1σ")
 plt.xlim(mn, mx); plt.ylim(mn, mx)
 plt.gca().set_aspect("equal", adjustable="box")
 plt.grid(True, linestyle=":", linewidth=0.6, alpha=0.7)
@@ -209,8 +210,8 @@ plt.scatter(xL, yL, s=16, alpha=0.8)
 mnL = float(np.nanmin([xL.min(), yL.min(), 0.0]))
 mxL = float(np.nanmax([xL.max(), yL.max()]))
 plt.plot([mnL, mxL], [mnL, mxL], "--", linewidth=1)
-plt.xlabel("LE (Tower) [W m⁻²]")
-plt.ylabel("LE (Model) [W m⁻²]")
+plt.xlabel("LE (Tower) [W/m²]")
+plt.ylabel("LE (Model) [W/m²]")
 plt.title("Latent Heat (Model vs Tower)")
 
 overall_rmse_LE = float(np.sqrt(mean_squared_error(xL, yL)))
@@ -219,7 +220,8 @@ try:
 except Exception:
     overall_r2_LE = np.nan
 
-txtL = f"RMSE = {overall_rmse_LE:.1f}\nR² = {overall_r2_LE:.3f}\nN = {len(paired)}"
+# txtL = f"RMSE = {overall_rmse_LE:.1f}\nR² = {overall_r2_LE:.3f}\nN = {len(paired)}"
+txtL = f"RMSE = {overall_rmse_LE:.1f} W m⁻²\nN = {len(paired)}"
 plt.text(mnL + 0.05*(mxL-mnL), mnL + 0.90*(mxL-mnL), txtL,
          bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
 plt.xlim(mnL, mxL); plt.ylim(mnL, mxL)
@@ -295,14 +297,15 @@ try:
 except Exception:
     r2_sites_LE = np.nan
 
-txt_site_LE = (f"RMSE = {rmse_sites_LE:.1f}\n"
-               f"R² = {r2_sites_LE:.3f}")
+# txt_site_LE = (f"RMSE = {rmse_sites_LE:.1f}\n"
+#                f"R² = {r2_sites_LE:.3f}")
+txt_site_LE = (f"RMSE = {rmse_sites_LE:.1f} W/m²\n")
 plt.text(mnL + 0.05*(mxL-mnL), mnL + 0.90*(mxL-mnL), txt_site_LE,
          bbox=dict(boxstyle="round", facecolor="white", alpha=0.85))
 
-plt.xlabel("LE mean (Tower) [W m⁻²]")
-plt.ylabel("LE mean (Model) [W m⁻²]")
-plt.title("Site-wise Mean LE ± 1σ")
+plt.xlabel("LE mean (Tower) [W/m²]")
+plt.ylabel("LE mean (Model) [W/m²]")
+plt.title("Site-wise Mean Latent Heat Flux (LE) ± 1σ")
 plt.xlim(mnL, mxL); plt.ylim(mnL, mxL)
 plt.gca().set_aspect("equal", adjustable="box")
 plt.grid(True, linestyle=":", linewidth=0.6, alpha=0.7)

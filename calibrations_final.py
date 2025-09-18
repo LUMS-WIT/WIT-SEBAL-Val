@@ -255,17 +255,17 @@ def scatter_plot(x, y, title, fname, rmse, r2, bias):
     min_val = np.nanmin([np.nanmin(x), np.nanmin(y)])
     max_val = np.nanmax([np.nanmax(x), np.nanmax(y)])
     plt.plot([min_val, max_val], [min_val, max_val], "r--", label="1:1")
-    plt.xlabel("Model LE (W/m²)")
-    plt.ylabel("Tower LE (W/m²)")
+    plt.xlabel("LE (Model) [W/m²]")
+    plt.ylabel("LE (Tower) [W/m²]")
     plt.title(f"{title}  [{tower_mode_used}]")
-    plt.text(0.05, 0.95, f"RMSE={rmse:.2f}\nR²={r2:.2f}\nBias={bias:.2f}",
+    plt.text(0.05, 0.95, f"RMSE={rmse:.2f} W/m²\nR²={r2:.2f}\nBias={bias:.2f} W/m²",
              transform=plt.gca().transAxes, va="top", ha="left",
              bbox=dict(facecolor="white", alpha=0.7))
     plt.legend(); plt.grid(True, linestyle="--", alpha=0.6)
     plt.tight_layout(); plt.savefig(os.path.join(out_dir, fname), dpi=300); plt.close()
 
-scatter_plot(df["LE_inst_avg"], LE_tower, "LE Before Calibration", "LE_before.png", rmse_b, r2_b, bias_b)
-scatter_plot(LE_corr_EF,        LE_tower, "LE After EF Calibration", "LE_after_EF.png", rmse_a, r2_a, bias_a)
+scatter_plot(df["LE_inst_avg"], LE_tower, "Latent Heat (LE) Before Calibration", "LE_before.png", rmse_b, r2_b, bias_b)
+scatter_plot(LE_corr_EF,        LE_tower, "Latent Heat (LE) After Calibration", "LE_after_EF.png", rmse_a, r2_a, bias_a)
 
 # -----------------------------
 # Calibration plot (EF_t_closed vs EF_m)
