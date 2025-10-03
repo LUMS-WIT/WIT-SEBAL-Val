@@ -840,11 +840,13 @@ def plot_paired(paired_values, stats_results):
     mean_bias = stats_results['bias']['mean']
     mean_mse = stats_results['mse']['mean']
     mean_p_rho = stats_results['p_rho']['mean']
+    mean_s_rho = stats_results['s_rho']['mean']
     mean_ubrmsd = stats_results['ubrmsd']['mean']
 
     # Derive display metrics from the precomputed means
     r2_disp = mean_p_rho**2 if mean_p_rho is not None else np.nan
     r_disp = mean_p_rho if mean_p_rho is not None else np.nan
+    s_disp = mean_s_rho if mean_s_rho is not None else np.nan
     rmse_disp = np.sqrt(mean_mse) if mean_mse is not None else np.nan
     bias_disp = mean_bias if mean_bias is not None else np.nan
 
@@ -853,11 +855,12 @@ def plot_paired(paired_values, stats_results):
 
     # Annotate on plot
     textstr = (
-        f"R = {r_disp:.3f}\n"
-        f"RMSE = {rmse_disp:.3f} m³/m³\n"
-        f"ubRMSE = {mean_ubrmsd:.3f} m³/m³\n"
         f"Bias = {bias_disp:.3f} m³/m³\n"
-        f"N = {N}"
+        f"RMSE = {rmse_disp:.3f} m³/m³\n"
+        f"ubRMSD = {mean_ubrmsd:.3f} m³/m³\n"
+        f"R = {r_disp:.3f}\n"
+        fr"$\rho$ = {s_disp:.3f}"
+        f"\nN = {N}"
     )
     plt.gca().text(
         0.02, 0.98, textstr,

@@ -20,7 +20,7 @@ file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
 file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
-param = 'overlaps'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+param = 'mse'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
 display_extent = False  # True to display the extent box on the full map
 
 
@@ -188,10 +188,12 @@ gl2.ylabel_style = {'size': 12, 'color': 'gray'}
 # Plot the scatter points
 if param == 'overlaps':
     sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
-elif param == 'bias' or param == 'mse':
+elif param == 'bias':
     sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=-0.025, vmax=0.025)
 elif param == 'ubrmsd':
     sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=0.04)
+elif param == 'mse':
+    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=0.01)
 else:
     sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree())
 
