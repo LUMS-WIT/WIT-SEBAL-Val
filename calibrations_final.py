@@ -172,8 +172,8 @@ def stats(y_true, y_pred):
     err = y_pred[mask] - y_true[mask]
     rmse = float(np.sqrt(np.mean(err**2)))
     bias = float(np.mean(err))
-    r2 = float(np.corrcoef(y_true[mask], y_pred[mask])[0,1]**2)
-    return rmse, r2, bias
+    r = float(np.corrcoef(y_true[mask], y_pred[mask])[0,1])
+    return rmse, r, bias
 
 LE_tower = df["LE_F_MDS"]
 rmse_b, r2_b, bias_b = stats(LE_tower, df["LE_inst_avg"])  # before
@@ -258,7 +258,7 @@ def scatter_plot(x, y, title, fname, rmse, r2, bias):
     plt.xlabel("LE (Model) [W/m²]")
     plt.ylabel("LE (Tower) [W/m²]")
     plt.title(f"{title}  [{tower_mode_used}]")
-    plt.text(0.05, 0.95, f"RMSE={rmse:.2f} W/m²\nR²={r2:.2f}\nBias={bias:.2f} W/m²",
+    plt.text(0.05, 0.95, f"RMSE={rmse:.2f} W/m²\nR={r2:.2f}\nBias={bias:.2f} W/m²",
              transform=plt.gca().transAxes, va="top", ha="left",
              bbox=dict(facecolor="white", alpha=0.7))
     plt.legend(); plt.grid(True, linestyle="--", alpha=0.6)
@@ -285,7 +285,7 @@ def calib_scatter(x, y, slope, intercept, xlabel, ylabel, title, fname):
         rmse = np.sqrt(np.mean((y_hat - y[mask])**2))
         bias = np.mean(y_hat - y[mask])
         r2 = np.corrcoef(y[mask], y_hat)[0,1]**2
-        txt = f"RMSE={rmse:.2f}\nR²={r2:.2f}\nBias={bias:.2f}"
+        txt = f"RMSE={rmse:.2f}\nR={r2:.2f}\nBias={bias:.2f}"
     else:
         txt = "insufficient pairs"
     plt.xlabel(xlabel); plt.ylabel(ylabel); plt.title(title + f" [{tower_mode_used}]")
