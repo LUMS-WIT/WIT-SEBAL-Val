@@ -1003,3 +1003,206 @@ def validations_gpi_adv(folder_path, threshold= -0.47, alpha=0.05):
     return metrics_dict, observations
 
 '''
+
+# -------------------------------------------------------------------------------------------------------------
+# Model uncertainity analysis
+# -------------------------------------------------------------------------------------------------------------
+
+def sebal_uncertainty_analysis(folder_path):
+    """
+    Computes intrinsic SEBAL model uncertainty using lower/upper bounds.
+
+    Returns
+    -------
+    uq_dict : dict
+        SEBAL uncertainty statistics per GPI
+    uq_values : DataFrame
+        Long-format uncertainty values for plotting
+    """
+
+    uq_dict = {
+        'gpi': [],
+        'sigma_mean': [],
+        'sigma_median': [],
+        'sigma_p95': [],
+        'rel_sigma_mean': []
+    }
+
+    uq_records = []
+
+    if COMBINE_VALIDATIONS:
+        specific_folder_name = f'*_{TEMPORAL_WIN}'
+        files = combine_val_files(folder_path, specific_folder_name)
+        total_files = len(files)
+        print(f"Model Uncertainty: Reading {total_files} files...")
+    else:
+        files = [
+            os.path.join(folder_path, f)
+            for f in os.listdir(folder_path)
+            if f.endswith(".xlsx") and 'witgpi' in f
+        ]
+        total_files = len(files)
+        print(f"Model Uncertainty: Reading {total_files} files...")
+
+    pattern = r'witgpi_([^_]+)_'
+
+    for file in files:
+
+        df = pd.read_excel(file)
+
+        # Required columns
+        required_cols = ['sebal_sm', 'sebal_sm_l', 'sebal_sm_u', 'wit_sm']
+        if not all(col in df.columns for col in required_cols):
+            continue
+
+        sebal_m = df['sebal_sm'].to_numpy(dtype=float)
+        sebal_l = df['sebal_sm_l'].to_numpy(dtype=float)
+        sebal_u = df['sebal_sm_u'].to_numpy(dtype=float)
+        wit_sm  = df['wit_sm'].to_numpy(float)
+
+        if len(wit_sm) < 2:
+            continue
+
+        p_rho = metrics.pearson_r(sebal_m, wit_sm)
+        s_rho = metrics.spearman_r(sebal_m, wit_sm)
+
+        valid = np.isfinite(sebal_m) & np.isfinite(sebal_l) & \
+                np.isfinite(sebal_u) & np.isfinite(wit_sm) & \
+                (p_rho >= -0.47) & (s_rho >= -0.47)
+
+        if valid.sum() < 2:
+            continue
+
+        sebal_m = sebal_m[valid]
+        sebal_l = sebal_l[valid]
+        sebal_u = sebal_u[valid]
+        wit_sm  = wit_sm[valid]
+
+        # ---- Core uncertainty calculation ----
+        sigma = 0.5 * (sebal_u - sebal_l)
+        rel_sigma = sigma / sebal_m
+
+        gpi_match = re.search(pattern, file)
+        gpi = gpi_match.group(1) if gpi_match else "unknown"
+
+        uq_dict['gpi'].append(gpi)
+        uq_dict['sigma_mean'].append(np.nanmean(sigma))
+        uq_dict['sigma_median'].append(np.nanmedian(sigma))
+        uq_dict['sigma_p95'].append(np.nanpercentile(sigma, 95))
+        uq_dict['rel_sigma_mean'].append(np.nanmean(rel_sigma))
+
+        uq_records.extend(
+            {
+                'gpi': gpi,
+                'sebal_sm': sm,
+                'sigma': s,
+                'rel_sigma': rs,
+                'sebal_l': l,
+                'sebal_u': u,
+                'wit_sm': w
+            }
+            for sm, s, rs, l, u, w in zip(
+                sebal_m, sigma, rel_sigma, sebal_l, sebal_u, wit_sm
+            )
+        )
+
+    uq_values = pd.DataFrame(uq_records)
+    return uq_dict, uq_values
+
+def plot_uncertainty_distribution(uq_values):
+    plt.figure(figsize=(6,4))
+    plt.hist(uq_values['sigma'], bins=50, density=True, alpha=0.7)
+    plt.xlabel('SEBAL Uncertainty σ (m³/m³)')
+    plt.ylabel('Probability Density')
+    plt.title('Distribution of SEBAL Model Uncertainty')
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+def plot_uncertainty_boxplot(uq_dict):
+    uq_df = pd.DataFrame(uq_dict)
+    data = [
+        uq_df['sigma_mean'].dropna(),
+        uq_df['sigma_median'].dropna(),
+        uq_df['sigma_p95'].dropna(),
+        uq_df['rel_sigma_mean'].dropna()
+    ]
+
+    labels = [
+        r'$\sigma_{\mathrm{mean}}$',
+        r'$\sigma_{\mathrm{median}}$',
+        r'$\sigma_{95}$',
+        r'Relative $\sigma$'
+    ]
+
+    plt.figure()
+    plt.boxplot(data, labels=labels, showfliers=True)
+    plt.ylabel('Uncertainty magnitude')
+    plt.xlabel('Uncertainty metric')
+    plt.tight_layout()
+    plt.show()
+
+def plot_uncertainty_vs_sm(df):
+    plt.figure(figsize=(6,4))
+    plt.scatter(df['sebal_sm'], 
+                0.5*(df['sebal_sm_u'] - df['sebal_sm_l']),
+                s=8, alpha=0.4)
+    plt.xlabel('SEBAL Soil Moisture (m³/m³)')
+    plt.ylabel('Uncertainty σ (m³/m³)')
+    plt.title('SEBAL Uncertainty vs Soil Moisture')
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+def plot_gpi_uncertainty(uq_values):
+    plt.figure(figsize=(8,4))
+    uq_values.boxplot(column='sigma', by='gpi', showfliers=False)
+    plt.xticks(rotation=90)
+    plt.ylabel('Uncertainty σ (m³/m³)')
+    plt.title('SEBAL Uncertainty Across GPI Locations')
+    plt.suptitle('')
+    plt.tight_layout()
+    plt.show()
+
+def plot_relative_uncertainty_vs_sm(uq_values):
+
+    plt.figure(figsize=(6,4))
+    plt.scatter(
+        uq_values['sebal_sm'],
+        uq_values['rel_sigma'],
+        s=8, alpha=0.4
+    )
+    plt.xlabel('SEBAL Soil Moisture (m³/m³)')
+    plt.ylabel('Relative Uncertainty (σ / SM)')
+    plt.title('Relative SEBAL Uncertainty vs Soil Moisture')
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+def compute_coverage_probability(uq_values):
+
+    inside = (
+        (uq_values['wit_sm'] >= uq_values['sebal_l']) &
+        (uq_values['wit_sm'] <= uq_values['sebal_u'])
+    )
+
+    return inside.mean()
+
+def plot_coverage_probability(uq_values):
+
+    coverage = compute_coverage_probability(uq_values)
+
+    plt.figure(figsize=(4,4))
+    plt.bar(['Coverage'], [coverage])
+    plt.ylim(0, 1)
+    plt.ylabel('Probability')
+    plt.title(f'Coverage Probability = {coverage:.2f}')
+    plt.tight_layout()
+    plt.show()
+
+    return coverage
+
+def uncertainty_signal_ratio(uq_values):
+    return np.nanmean(uq_values['sigma']) / metrics.calculate_iqr(
+        uq_values['sebal_sm']
+    )

@@ -2,7 +2,7 @@ library(terra)
 library(fs)
 
 crs_target <- "EPSG:4326"
-root_dir <- "D:/SEBAL/datasets/validation/LBDC_validations/150039/"
+root_dir <- "D:/SEBAL/datasets/validation/LBDC_validations/rzsm/upper/150039/"
 
 tif_files <- list.files(root_dir, pattern = "\\.tif$", full.names = TRUE)
 total_files <-length(tif_files)

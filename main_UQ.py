@@ -1,3 +1,4 @@
+
 """
 Created on Jan 2025
 
@@ -8,20 +9,21 @@ using WITSMS Network
 """
 import os
 import pandas as pd
-from utils import SoilMoistureData, SebalSoilMoistureData
+from utils import SoilMoistureData, SebalSoilMoistureData, compute_coverage_probability, plot_uncertainty_boxplot, uncertainty_signal_ratio
 from utils import remove_nan_entries, save_to_excel, save_metadata, save_to_plot
 from utils import validations_gpi, validations_gpi_adv, compute_statistics, plot_box_and_whiskers, plot_metric_with_ci
 from utils import plot_paired
+from utils import sebal_uncertainty_analysis, plot_uncertainty_distribution, plot_gpi_uncertainty, plot_coverage_probability, plot_coverage_probability, plot_relative_uncertainty_vs_sm
 from scaling import scaling, temporal_matching
 from sms_calibration import sms_calibrations
 import matplotlib.pyplot as plt
-from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, COMBINE_DIR
-
 
 from config import OUTLIER_THRESHOLD, ROW_PATH, WIT_SMS_PATH, RASTER_FOLDER_PATH, TEMPORAL_WIN, \
       VALIDATION_FOLDER, RESCALING, SAVE_PLOT, IMAGES_FOLDER, METADATA_FILE_PATH
 
 from config import COMBINE_VALIDATIONS, INPUT_FOLDER, OUTPUT_FILE, PLOT_OUTPUT_FILE
+
+from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, BASE_DIR, COMBINE_DIR
 
 if not os.path.exists(VALIDATION_FOLDER):
     # Create the folder
@@ -148,6 +150,31 @@ def combine_UQ():
 
 def validations():
 
+
+    # ----------------------------------------------------------------------
+    # STEP 3 : SEBAL uncertainty analysis (error propagation)
+    # ----------------------------------------------------------------------
+
+    uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
+    uq_stats = compute_statistics(uq_dict)
+
+    print('------------- SEBAL model uncertainty ----------------')
+    print(uq_stats)
+
+    plot_uncertainty_boxplot(uq_dict)
+
+    coverage = compute_coverage_probability(uq_values)
+    print('\nCoverage Probability at 95% confidence interval:', coverage)
+
+    usr = uncertainty_signal_ratio(uq_values)
+    print('Uncertainty Signal Ratio:', usr)
+
+    plot_uncertainty_distribution(uq_values)
+    plot_gpi_uncertainty(uq_values)
+    plot_relative_uncertainty_vs_sm(uq_values)
+    plot_coverage_probability(uq_values)
+ 
+
     # ----------------------------------------------------------------------
     # STEP 2 : Compute statistics based on generated file
     # ----------------------------------------------------------------------
@@ -158,6 +185,7 @@ def validations():
     print('------------- results for gpi based metrics ----------------')
     print('Number of Observatoions N:', num_of_obs)
     print(stats_results)
+    exit()
     plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
     plot_metric_with_ci(metrics_dict, metric='ubrmsd')
     plot_metric_with_ci(metrics_dict, metric='bias')
@@ -219,7 +247,7 @@ if __name__ == "__main__":
     print('------------  Step : 1b ----------------------')
     print('------- Combining overlaping gpi -----------')
     print('---------------------------------------------')
-    combine_UQ()
+    # combine_UQ()
 
     print('---------------------------------------------')
     print('------------  Step : 2 ----------------------')
