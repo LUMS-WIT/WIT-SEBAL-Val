@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+from scipy.stats import linregress
 
 # -----------------------------
 # Inputs & Outputs
@@ -120,19 +121,63 @@ if EF_CLIP is not None:
     EF_m = EF_m.clip(lo, hi)
 
 # -----------------------------
+# 5a. Site specific parameters fitting function
+# -----------------------------
+def fit_EF_params(EF_m, EF_t, min_points=3):
+    mask = np.isfinite(EF_m) & np.isfinite(EF_t)
+    if mask.sum() >= min_points:
+        reg = LinearRegression()
+        reg.fit(EF_m[mask].to_numpy().reshape(-1,1),
+                EF_t[mask].to_numpy())
+        return float(reg.coef_[0]), float(reg.intercept_), int(mask.sum())
+    else:
+        return 1.0, 0.0, int(mask.sum())
+
+
+# -----------------------------
 # 5. Fit EF calibration (tower ~ model)
 # -----------------------------
 mask = np.isfinite(EF_m) & np.isfinite(EF_t)
-print("Valid calibration pairs (EF):", int(mask.sum()))
+# print("Valid calibration pairs (EF):", int(mask.sum()))
+n_pairs = int(mask.sum())
+print("Valid calibration pairs (EF):", n_pairs)
 
-if mask.sum() >= 3:
-    reg = LinearRegression()
-    reg.fit(EF_m[mask].to_numpy().reshape(-1,1), EF_t[mask].to_numpy())
-    alpha, beta = float(reg.coef_[0]), float(reg.intercept_)
+# if mask.sum() >= 3:
+#     reg = LinearRegression()
+#     reg.fit(EF_m[mask].to_numpy().reshape(-1,1), EF_t[mask].to_numpy())
+#     alpha, beta = float(reg.coef_[0]), float(reg.intercept_)
+# else:
+#     alpha, beta = 1.0, 0.0  # fallback (no calibration)
+
+# print(f" EF_tower (closed) ≈ {alpha:.3f} * EF_model + {beta:.3f}")
+
+
+if n_pairs >= 3:
+    x = EF_m[mask].to_numpy()
+    y = EF_t[mask].to_numpy()
+
+    slope, intercept, r_value, p_value, std_err_slope = linregress(x, y)
+
+    alpha = float(slope)
+    beta  = float(intercept)
+
+    # Residuals and RMSE
+    residuals = y - (alpha * x + beta)
+    rmse = float(np.sqrt(np.mean(residuals**2)))
+
+    # Standard error of intercept (β)
+    x_mean = np.mean(x)
+    Sxx = np.sum((x - x_mean)**2)
+    sigma2 = np.sum(residuals**2) / (n_pairs - 2)
+
+    std_err_beta = float(np.sqrt(sigma2 * (1.0 / n_pairs + x_mean**2 / Sxx)))
+
 else:
-    alpha, beta = 1.0, 0.0  # fallback (no calibration)
-
-print(f" EF_tower (closed) ≈ {alpha:.3f} * EF_model + {beta:.3f}")
+    alpha, beta = 1.0, 0.0
+    rmse = np.nan
+    r_value = np.nan
+    std_err_slope = np.nan
+    std_err_beta = np.nan
 
 # -----------------------------
 # 6. Apply EF calibration to model LE (ratio-based; NO model closure)  ### CHANGED/NEW
@@ -156,11 +201,66 @@ H_corr_EF  = (df["Rn_inst_avg"] - df["G_inst_avg"]) - LE_corr_EF
 params = {
     "tower_EF_closure_mode_requested": TOWER_EF_CLOSURE_MODE,
     "tower_EF_closure_mode_used": tower_mode_used,
-    "EF_map": {"alpha": alpha, "beta": beta, "EF_clip": EF_CLIP},
+    # "EF_map": {"alpha": alpha, "beta": beta, "EF_clip": EF_CLIP},
+    "EF_map": {
+        "alpha": alpha,
+        "beta": beta,
+        "alpha_std_err": std_err_slope,
+        "beta_std_err": std_err_beta,
+        "r2": None if np.isnan(r_value) else float(r_value**2),
+        "rmse": rmse,
+        "n_pairs": n_pairs,
+        "EF_clip": EF_CLIP
+    },
+    "EF_Ensemble":{
+        'lower': {
+            'alpha': alpha - 1.96 * std_err_slope,  # 95% CI lower
+            'beta': beta - 1.96 * std_err_beta
+        },
+        'mean': {
+            'alpha': alpha,
+            'beta': beta
+        },
+        'upper': {
+            'alpha': alpha + 1.96 * std_err_slope,  # 95% CI upper
+            'beta': beta + 1.96 * std_err_beta
+        }
+
+    },
     "notes": "Tower EF closed; model EF from EF_inst_avg (preferred). LE corrected via EF-ratio (no model closure)."
 }
 with open(params_json, "w") as f:
     json.dump(params, f, indent=2)
+
+# -------------------------------------------------------
+# 7b. Site-specific EF calibration params (NEW, additive)
+# -------------------------------------------------------
+site_params = {}
+
+if "site" in df.columns:
+    for site, g in df.groupby("site"):
+        EF_m_s = EF_m.loc[g.index]
+        EF_t_s = EF_t.loc[g.index]
+
+        alpha_s, beta_s, n_s = fit_EF_params(EF_m_s, EF_t_s)
+
+        site_params[site] = {
+            "n_points": n_s,
+            "EF_map": {
+                "alpha": alpha_s,
+                "beta": beta_s,
+                "EF_clip": EF_CLIP
+            },
+            "tower_EF_closure_mode_used": tower_mode_used
+        }
+
+        # write one JSON per site
+        site_json = os.path.join(out_dir, f"EF_params_{site}.json")
+        with open(site_json, "w") as f:
+            json.dump(site_params[site], f, indent=2)
+
+        print(f"✅ Saved site params: {site} (n={n_s})")
+
 
 # -----------------------------
 # 8. Evaluation on LE (before vs after)

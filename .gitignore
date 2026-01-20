@@ -10,3 +10,5 @@ temp*
 calibrations/
 calibrated/
 ef_calibration/
+climate_analog/
+validations_UQ/
