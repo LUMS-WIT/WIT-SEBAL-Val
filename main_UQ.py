@@ -162,12 +162,21 @@ def validations():
     print(uq_stats)
 
     plot_uncertainty_boxplot(uq_dict)
-
     coverage = compute_coverage_probability(uq_values)
     print('\nCoverage Probability at 95% confidence interval:', coverage)
 
     usr = uncertainty_signal_ratio(uq_values)
     print('Uncertainty Signal Ratio:', usr)
+
+    # Convert uq_stats dictionary to DataFrame
+    uq_stats_df = pd.DataFrame(uq_stats).T
+    uq_stats_df.index.name = 'Metric'
+
+    uq_stats_df['USR'] = usr
+
+    # Save to Excel
+    output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
+    uq_stats_df.to_excel(output_excel)
 
     plot_uncertainty_distribution(uq_values)
     plot_gpi_uncertainty(uq_values)
@@ -185,7 +194,7 @@ def validations():
     print('------------- results for gpi based metrics ----------------')
     print('Number of Observatoions N:', num_of_obs)
     print(stats_results)
-    exit()
+    # exit()
     plot_box_and_whiskers(metrics_dict, PLOT_OUTPUT_FILE, False)
     plot_metric_with_ci(metrics_dict, metric='ubrmsd')
     plot_metric_with_ci(metrics_dict, metric='bias')

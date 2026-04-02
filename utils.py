@@ -1112,9 +1112,9 @@ def sebal_uncertainty_analysis(folder_path):
 def plot_uncertainty_distribution(uq_values):
     plt.figure(figsize=(6,4))
     plt.hist(uq_values['sigma'], bins=50, density=True, alpha=0.7)
-    plt.xlabel('SEBAL Uncertainty σ (m³/m³)')
+    plt.xlabel('Model Uncertainty σ (m³/m³)')
     plt.ylabel('Probability Density')
-    plt.title('Distribution of SEBAL Model Uncertainty')
+    # plt.title('Distribution of SEBAL Model Uncertainty')
     plt.grid(alpha=0.3)
     plt.tight_layout()
     plt.show()
@@ -1125,20 +1125,38 @@ def plot_uncertainty_boxplot(uq_dict):
         uq_df['sigma_mean'].dropna(),
         uq_df['sigma_median'].dropna(),
         uq_df['sigma_p95'].dropna(),
-        uq_df['rel_sigma_mean'].dropna()
+        # uq_df['rel_sigma_mean'].dropna()
     ]
 
     labels = [
         r'$\sigma_{\mathrm{mean}}$',
         r'$\sigma_{\mathrm{median}}$',
         r'$\sigma_{95}$',
-        r'Relative $\sigma$'
+        # r'Relative $\sigma$'
     ]
 
     plt.figure()
-    plt.boxplot(data, labels=labels, showfliers=True)
-    plt.ylabel('Uncertainty magnitude')
-    plt.xlabel('Uncertainty metric')
+
+    bp = plt.boxplot(
+        data,
+        labels=labels,
+        showfliers=False,
+        patch_artist=False
+    )
+
+        # Annotate median values
+    for i, median_line in enumerate(bp['medians']):
+        median_value = median_line.get_ydata()[0]
+        plt.text(
+            i + 1,
+            median_value,
+            f'{median_value:.4f}',
+            ha='center',
+            va='bottom',
+            fontsize=9
+        )
+    plt.ylabel('Uncertainty magnitude (m³/m³)')
+    # plt.xlabel('Uncertainty metric')
     plt.tight_layout()
     plt.show()
 
@@ -1158,8 +1176,9 @@ def plot_gpi_uncertainty(uq_values):
     plt.figure(figsize=(8,4))
     uq_values.boxplot(column='sigma', by='gpi', showfliers=False)
     plt.xticks(rotation=90)
+    plt.xlabel('WITSMS Locations ID (GPI)')
     plt.ylabel('Uncertainty σ (m³/m³)')
-    plt.title('SEBAL Uncertainty Across GPI Locations')
+    plt.title('Model Uncertainty Across WITSMS Locations')
     plt.suptitle('')
     plt.tight_layout()
     plt.show()
