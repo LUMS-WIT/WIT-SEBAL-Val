@@ -14,7 +14,7 @@ from utils import remove_nan_entries, save_to_excel, save_metadata, save_to_plot
 from utils import validations_gpi, validations_gpi_adv, compute_statistics, plot_box_and_whiskers, plot_metric_with_ci
 from utils import plot_paired
 from utils import sebal_uncertainty_analysis, plot_uncertainty_distribution, plot_gpi_uncertainty, plot_coverage_probability, plot_coverage_probability, plot_relative_uncertainty_vs_sm
-from scaling import scaling, temporal_matching
+from scaling import scaling, temporal_matching, temporal_matching_windowed
 from sms_calibration import sms_calibrations
 import matplotlib.pyplot as plt
 
@@ -30,81 +30,181 @@ if not os.path.exists(VALIDATION_FOLDER):
     os.makedirs(VALIDATION_FOLDER)
 
 
-def generate_overalps():
+# def generate_overlaps():
 
-    # ----------------------------------------------------------------------
-    # STEP 1 : Reading sms and raster data, finding the overlapping points 
-    # and saving them in excel files along with metadata file
-    # ----------------------------------------------------------------------
+#     # ----------------------------------------------------------------------
+#     # STEP 1 : Reading sms and raster data, finding the overlapping points 
+#     # and saving them in excel files along with metadata file
+#     # ----------------------------------------------------------------------
 
+#     soil_moisture_data = SoilMoistureData(WIT_SMS_PATH)
+#     soil_moisture_data.read_data()
+#     metadata = soil_moisture_data.get_metadata()
+#     raster_data = SebalSoilMoistureData(RASTER_FOLDER_PATH, pattern='Root_zone_moisture')
+
+
+#     validation_metadata = []
+#     print(f'Performing temporal matching with temporal window of {TEMPORAL_WIN} days')
+#     # for _metadata in data_within_extent:
+#     for _metadata in metadata:
+#         lat, lon = float(_metadata['latitude']), float(_metadata['longitude'])
+
+
+#         csv_dates, csv_values = soil_moisture_data.get_soil_moisture_by_location(lat, lon)
+#         raster_dates, raster_values = raster_data.get_data(lat, lon)
+
+#         # Check if None returned (No overalping points), then skip to the next iteration
+#         if raster_dates is None or raster_values is None:
+#             continue  # Skip the rest of the code in the loop and move to the next iteration
+
+#         csv_dates, csv_values = remove_nan_entries(csv_dates, csv_values)
+#         raster_dates, raster_values = remove_nan_entries(raster_dates, raster_values)
+
+#         # Find overlapping data
+#         ref_data = (csv_dates, csv_values)  # Reference data from CSV files
+#         test_data = (raster_dates, raster_values)  # Test data from raster files
+#         ref_data = sms_calibrations(ref_data)
+
+#         if RESCALING:
+#             test_data, _ = scaling(test_data, ref_data)
+#             csv_dates, csv_values = ref_data
+#             raster_dates, raster_values = test_data
+#         # Find overlapping data
+#         common_dates, ref_values, test_values, overlap_count = temporal_matching(test_data, ref_data, TEMPORAL_WIN)
+#         # print(raster_values)
+#         # print("Overlapping Dates:", common_dates)
+#         # print("Reference Values:", ref_values)
+#         # print("Test Values:", test_values)
+#         # print("Total Valid Overlaps:", overlap_count)
+
+
+#         _metadata['overlaps'] = overlap_count
+
+#         # Only add to the new list if overlaps are non-zero
+#         if overlap_count > 0:
+#             validation_metadata.append(_metadata)
+
+#             # Prepare data to save in Excel
+#             data_to_save = list(zip(common_dates, ref_values, test_values))
+#             headers = ['Timestamp', 'wit_sm', 'sebal_sm']
+#             filename = f'\sebal_{ROW_PATH}_witgpi_{_metadata["gpi"]}_lat_{lat}_lon_{lon}.xlsx'
+
+#             filename = VALIDATION_FOLDER + filename
+
+#             # Save data to Excel file
+#             save_to_excel(data_to_save, filename, headers)
+
+#             filename_img = f'\sebal_{ROW_PATH}_witgpi_{_metadata["gpi"]}_lat_{lat}_lon_{lon}.png'
+#             filename_img = IMAGES_FOLDER + filename_img
+#             if SAVE_PLOT:
+#                 save_to_plot(csv_dates, csv_values, raster_dates, raster_values, lat, lon, filename_img)
+
+#     print('Total number of overlapping in-situ sensors', len(validation_metadata))
+
+#     # if not RESCALING:
+#     save_metadata(validation_metadata, METADATA_FILE_PATH)
+
+#     return
+
+def generate_overlaps():
+    
     soil_moisture_data = SoilMoistureData(WIT_SMS_PATH)
     soil_moisture_data.read_data()
     metadata = soil_moisture_data.get_metadata()
     raster_data = SebalSoilMoistureData(RASTER_FOLDER_PATH, pattern='Root_zone_moisture')
 
+    # Matching schemes for reviewer analysis
+    matching_schemes = [
+        {"label": "d0", "half_window": 0, "min_valid": 1},  # same day
+        {"label": "w3", "half_window": 1, "min_valid": 2},  # centered 3-day
+        {"label": "w5", "half_window": 2, "min_valid": 3},  # centered 5-day
+        {"label": "w7", "half_window": 3, "min_valid": 4},  # centered 7-day
+    ]
 
-    validation_metadata = []
-    print(f'Performing temporal matching with temporal window of {TEMPORAL_WIN} days')
-    # for _metadata in data_within_extent:
+    # Store metadata separately for each scheme
+    metadata_by_scheme = {scheme["label"]: [] for scheme in matching_schemes}
+
     for _metadata in metadata:
         lat, lon = float(_metadata['latitude']), float(_metadata['longitude'])
-
 
         csv_dates, csv_values = soil_moisture_data.get_soil_moisture_by_location(lat, lon)
         raster_dates, raster_values = raster_data.get_data(lat, lon)
 
-        # Check if None returned (No overalping points), then skip to the next iteration
         if raster_dates is None or raster_values is None:
-            continue  # Skip the rest of the code in the loop and move to the next iteration
+            continue
 
         csv_dates, csv_values = remove_nan_entries(csv_dates, csv_values)
         raster_dates, raster_values = remove_nan_entries(raster_dates, raster_values)
 
-        # Find overlapping data
-        ref_data = (csv_dates, csv_values)  # Reference data from CSV files
-        test_data = (raster_dates, raster_values)  # Test data from raster files
-        ref_data = sms_calibrations(ref_data)
+        sensor_data = (csv_dates, csv_values)
+        model_data = (raster_dates, raster_values)
+
+        sensor_data = sms_calibrations(sensor_data)
 
         if RESCALING:
-            test_data, _ = scaling(test_data, ref_data)
-            csv_dates, csv_values = ref_data
-            raster_dates, raster_values = test_data
-        # Find overlapping data
-        common_dates, ref_values, test_values, overlap_count = temporal_matching(test_data, ref_data, TEMPORAL_WIN)
-        # print(raster_values)
-        # print("Overlapping Dates:", common_dates)
-        # print("Reference Values:", ref_values)
-        # print("Test Values:", test_values)
-        # print("Total Valid Overlaps:", overlap_count)
+            model_data, _ = scaling(model_data, sensor_data)
 
+        for scheme in matching_schemes:
+            label = scheme["label"]
+            half_window = scheme["half_window"]
+            min_valid = scheme["min_valid"]
 
-        _metadata['overlaps'] = overlap_count
+            (
+                common_dates,
+                sensor_window_values,
+                model_values,
+                overlap_count,
+                n_sensor_used,
+                used_sensor_dates,
+            ) = temporal_matching_windowed(
+                model_data=model_data,
+                sensor_data=sensor_data,
+                half_window=half_window,
+                min_valid=min_valid
+            )
 
-        # Only add to the new list if overlaps are non-zero
-        if overlap_count > 0:
-            validation_metadata.append(_metadata)
+            _metadata_copy = dict(_metadata)
+            _metadata_copy['matching_scheme'] = label
+            _metadata_copy['overlaps'] = overlap_count
 
-            # Prepare data to save in Excel
-            data_to_save = list(zip(common_dates, ref_values, test_values))
-            headers = ['Timestamp', 'wit_sm', 'sebal_sm']
-            filename = f'\sebal_{ROW_PATH}_witgpi_{_metadata["gpi"]}_lat_{lat}_lon_{lon}.xlsx'
+            if overlap_count > 0:
+                metadata_by_scheme[label].append(_metadata_copy)
 
-            filename = VALIDATION_FOLDER + filename
+                # Save detailed pairing for this site and scheme
+                data_to_save = []
+                for dt, s_val, m_val, n_used, used_dates in zip(
+                    common_dates,
+                    sensor_window_values,
+                    model_values,
+                    n_sensor_used,
+                    used_sensor_dates
+                ):
+                    used_dates_str = ", ".join([d.isoformat() for d in used_dates])
+                    data_to_save.append((dt, s_val, m_val, n_used, used_dates_str))
 
-            # Save data to Excel file
-            save_to_excel(data_to_save, filename, headers)
+                headers = [
+                    'Timestamp',
+                    'wit_sm_windowed',
+                    'sebal_sm',
+                    'n_sensor_used',
+                    'used_sensor_dates'
+                ]
 
-            filename_img = f'\sebal_{ROW_PATH}_witgpi_{_metadata["gpi"]}_lat_{lat}_lon_{lon}.png'
-            filename_img = IMAGES_FOLDER + filename_img
-            if SAVE_PLOT:
-                save_to_plot(csv_dates, csv_values, raster_dates, raster_values, lat, lon, filename_img)
+                filename = (
+                    f'{VALIDATION_FOLDER}\\{label}\\'
+                    f'sebal_{ROW_PATH}_{label}_witgpi_{_metadata["gpi"]}_lat_{lat}_lon_{lon}.xlsx'
+                )
 
-    print('Total number of overlapping in-situ sensors', len(validation_metadata))
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                save_to_excel(data_to_save, filename, headers)
 
-    # if not RESCALING:
-    save_metadata(validation_metadata, METADATA_FILE_PATH)
+    # Save metadata for each scheme
+    for scheme in matching_schemes:
+        label = scheme["label"]
+        print(f'Total sensors with overlaps for {label}:', len(metadata_by_scheme[label]))
+        metadata_file = f'{VALIDATION_FOLDER}\\metadata_{label}.xlsx'
+        save_metadata(metadata_by_scheme[label], metadata_file)
 
-    return
 
 def combine_UQ():
 
@@ -155,33 +255,33 @@ def validations():
     # STEP 3 : SEBAL uncertainty analysis (error propagation)
     # ----------------------------------------------------------------------
 
-    uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
-    uq_stats = compute_statistics(uq_dict)
+    # uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
+    # uq_stats = compute_statistics(uq_dict)
 
-    print('------------- SEBAL model uncertainty ----------------')
-    print(uq_stats)
+    # print('------------- SEBAL model uncertainty ----------------')
+    # print(uq_stats)
 
-    plot_uncertainty_boxplot(uq_dict)
-    coverage = compute_coverage_probability(uq_values)
-    print('\nCoverage Probability at 95% confidence interval:', coverage)
+    # plot_uncertainty_boxplot(uq_dict)
+    # coverage = compute_coverage_probability(uq_values)
+    # print('\nCoverage Probability at 95% confidence interval:', coverage)
 
-    usr = uncertainty_signal_ratio(uq_values)
-    print('Uncertainty Signal Ratio:', usr)
+    # usr = uncertainty_signal_ratio(uq_values)
+    # print('Uncertainty Signal Ratio:', usr)
 
-    # Convert uq_stats dictionary to DataFrame
-    uq_stats_df = pd.DataFrame(uq_stats).T
-    uq_stats_df.index.name = 'Metric'
+    # # Convert uq_stats dictionary to DataFrame
+    # uq_stats_df = pd.DataFrame(uq_stats).T
+    # uq_stats_df.index.name = 'Metric'
 
-    uq_stats_df['USR'] = usr
+    # uq_stats_df['USR'] = usr
 
-    # Save to Excel
-    output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
-    uq_stats_df.to_excel(output_excel)
+    # # Save to Excel
+    # output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
+    # uq_stats_df.to_excel(output_excel)
 
-    plot_uncertainty_distribution(uq_values)
-    plot_gpi_uncertainty(uq_values)
-    plot_relative_uncertainty_vs_sm(uq_values)
-    plot_coverage_probability(uq_values)
+    # plot_uncertainty_distribution(uq_values)
+    # plot_gpi_uncertainty(uq_values)
+    # plot_relative_uncertainty_vs_sm(uq_values)
+    # plot_coverage_probability(uq_values)
  
 
     # ----------------------------------------------------------------------
@@ -250,7 +350,8 @@ if __name__ == "__main__":
     print('------------  Step : 1 ----------------------')
     print('------- Generating overlaping gpi -----------')
     print('---------------------------------------------')
-    # generate_overalps()
+    # generate_overlaps()
+    # exit()
 
     print('---------------------------------------------')
     print('------------  Step : 1b ----------------------')

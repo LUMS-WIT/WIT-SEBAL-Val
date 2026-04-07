@@ -13,12 +13,12 @@ TEMPORAL_WIN = 0   # days for temporal matching
 
 # input datasets
 WIT_SMS_PATH = 'D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily'
-RASTER_FOLDER_PATH = fr'D:/SEBAL/datasets/validation/LBDC_validations/rzsm/upper/{ROW_PATH}/'
+RASTER_FOLDER_PATH = fr'D:/SEBAL/datasets/validation/LBDC_validations/rzsm/mean/{ROW_PATH}/'
 
 # output
-VALIDATION_FOLDER = fr'.\validations_UQ\validation_points\upper\{ROW_PATH}_{TEMPORAL_WIN}'
+VALIDATION_FOLDER = fr'.\validations_UQ\validation_points\mean\{ROW_PATH}_{TEMPORAL_WIN}'
 IMAGES_FOLDER = fr'.\validations_UQ\figs\{ROW_PATH}'
-METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\upper\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
+METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\mean\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
 
 # ------------------------------- #
 # STEP 1b Combining validations for UQ
@@ -35,7 +35,8 @@ COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
 # ------------------------------- #
 
 COMBINE_VALIDATIONS = True
-MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
+# MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
+MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
 OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
 
 

@@ -129,3 +129,94 @@ def temporal_matching(test_data, ref_data, search_range=0):
     valid_overlap_count = len(overlapping_ref_dates)
 
     return overlapping_ref_dates, overlapping_ref_values, overlapping_test_values, valid_overlap_count
+
+
+def temporal_matching_windowed(model_data, sensor_data, half_window=0, min_valid=1, agg_func=np.nanmean):
+    """
+    Match each MODEL/SEBAL date exactly once with a windowed SENSOR summary.
+
+    Parameters
+    ----------
+    model_data : tuple
+        (model_dates, model_values) e.g. SEBAL dates and values
+    sensor_data : tuple
+        (sensor_dates, sensor_values) e.g. WIT sensor dates and values
+    half_window : int
+        0 -> same-day only
+        1 -> centered 3-day window
+        2 -> centered 5-day window
+        3 -> centered 7-day window
+    min_valid : int
+        Minimum number of valid sensor observations required inside the window.
+    agg_func : callable
+        Aggregation function for valid sensor values, default np.nanmean
+
+    Returns
+    -------
+    matched_model_dates : list
+        Dates of SEBAL observations that found enough valid sensor support
+    aggregated_sensor_values : list
+        Window-aggregated sensor values
+    matched_model_values : list
+        Corresponding SEBAL values
+    valid_overlap_count : int
+        Number of matched SEBAL dates
+    n_sensor_used : list
+        Number of valid sensor values used in each aggregated window
+    used_sensor_dates : list
+        List of actual sensor dates used for each SEBAL date
+    """
+    model_dates, model_values = model_data
+    sensor_dates, sensor_values = sensor_data
+
+    # Convert to daily dictionaries
+    sensor_dict = {
+        d.date(): float(v)
+        for d, v in zip(sensor_dates, sensor_values)
+        if not np.isnan(v)
+    }
+
+    matched_model_dates = []
+    aggregated_sensor_values = []
+    matched_model_values = []
+    n_sensor_used = []
+    used_sensor_dates = []
+
+    # Sort model dates so output is ordered
+    for model_dt, model_val in sorted(zip(model_dates, model_values), key=lambda x: x[0]):
+        if np.isnan(model_val):
+            continue
+
+        center_date = model_dt.date()
+        window_values = []
+        window_dates_used = []
+
+        for offset in range(-half_window, half_window + 1):
+            candidate_date = center_date + datetime.timedelta(days=offset)
+
+            if candidate_date in sensor_dict:
+                v = sensor_dict[candidate_date]
+                if not np.isnan(v):
+                    window_values.append(v)
+                    window_dates_used.append(candidate_date)
+
+        # Only keep if enough valid sensor values exist
+        if len(window_values) >= min_valid:
+            agg_value = float(agg_func(window_values))
+
+            matched_model_dates.append(center_date)
+            aggregated_sensor_values.append(agg_value)
+            matched_model_values.append(float(model_val))
+            n_sensor_used.append(len(window_values))
+            used_sensor_dates.append(window_dates_used)
+
+    valid_overlap_count = len(matched_model_dates)
+
+    return (
+        matched_model_dates,
+        aggregated_sensor_values,
+        matched_model_values,
+        valid_overlap_count,
+        n_sensor_used,
+        used_sensor_dates,
+    )
