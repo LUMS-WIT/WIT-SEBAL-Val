@@ -3,12 +3,22 @@ from pathlib import Path
 # configuration file consisting of variables and paths
 
 
+from pathlib import Path
+
 ROW_PATHS = ["149039", "150039"]
 RASTER_STATS = ["mean", "lower", "upper"]
 
 RUN_VALIDATION = True
 RUN_UQ = False
+
+WIT_SMS_PATH = "D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily"
+
+SAVE_PLOT = True
 RESCALING = True
+TEMPORAL_WIN = 0
+
+OUTLIER_THRESHOLD = None
+COMBINE_VALIDATIONS = False
 
 # ------------------------------- #
 # STEP1 Variables 
