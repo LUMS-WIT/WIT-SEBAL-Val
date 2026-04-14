@@ -23,7 +23,7 @@ from config import OUTLIER_THRESHOLD, ROW_PATH, WIT_SMS_PATH, RASTER_FOLDER_PATH
 
 from config import COMBINE_VALIDATIONS, INPUT_FOLDER, OUTPUT_FILE, PLOT_OUTPUT_FILE
 
-from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, BASE_DIR, COMBINE_DIR
+from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, BASE_DIR_RESULTS, COMBINE_DIR
 
 if not os.path.exists(VALIDATION_FOLDER):
     # Create the folder
@@ -251,37 +251,37 @@ def combine_UQ():
 def validations():
 
 
-    # ----------------------------------------------------------------------
-    # STEP 3 : SEBAL uncertainty analysis (error propagation)
-    # ----------------------------------------------------------------------
+    # # ----------------------------------------------------------------------
+    # # STEP 3 : SEBAL uncertainty analysis (error propagation)
+    # # ----------------------------------------------------------------------
 
-    uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
-    uq_stats = compute_statistics(uq_dict)
+    # uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
+    # uq_stats = compute_statistics(uq_dict)
 
-    print('------------- SEBAL model uncertainty ----------------')
-    print(uq_stats)
+    # print('------------- SEBAL model uncertainty ----------------')
+    # print(uq_stats)
 
-    plot_uncertainty_boxplot(uq_dict)
-    coverage = compute_coverage_probability(uq_values)
-    print('\nCoverage Probability at 95% confidence interval:', coverage)
+    # plot_uncertainty_boxplot(uq_dict)
+    # coverage = compute_coverage_probability(uq_values)
+    # print('\nCoverage Probability at 95% confidence interval:', coverage)
 
-    usr = uncertainty_signal_ratio(uq_values)
-    print('Uncertainty Signal Ratio:', usr)
+    # usr = uncertainty_signal_ratio(uq_values)
+    # print('Uncertainty Signal Ratio:', usr)
 
-    # Convert uq_stats dictionary to DataFrame
-    uq_stats_df = pd.DataFrame(uq_stats).T
-    uq_stats_df.index.name = 'Metric'
+    # # Convert uq_stats dictionary to DataFrame
+    # uq_stats_df = pd.DataFrame(uq_stats).T
+    # uq_stats_df.index.name = 'Metric'
 
-    uq_stats_df['USR'] = usr
+    # uq_stats_df['USR'] = usr
 
-    # Save to Excel
-    output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
-    uq_stats_df.to_excel(output_excel)
+    # # Save to Excel
+    # output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
+    # uq_stats_df.to_excel(output_excel)
 
-    plot_uncertainty_distribution(uq_values)
-    plot_gpi_uncertainty(uq_values)
-    plot_relative_uncertainty_vs_sm(uq_values)
-    plot_coverage_probability(uq_values)
+    # plot_uncertainty_distribution(uq_values)
+    # plot_gpi_uncertainty(uq_values)
+    # plot_relative_uncertainty_vs_sm(uq_values)
+    # plot_coverage_probability(uq_values)
  
 
     # ----------------------------------------------------------------------
@@ -320,6 +320,7 @@ def validations():
     observations_df = pd.DataFrame({'Metric': ['Observations'], 'mean': [num_of_obs], 'median': [''], 'IQR': ['']})
     summary_df = pd.concat([observations_df, summary_df], ignore_index=True)
 
+    BASE_DIR_RESULTS.mkdir(exist_ok=True)
     if COMBINE_VALIDATIONS:
         # Save only the summary
         with pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter') as writer:

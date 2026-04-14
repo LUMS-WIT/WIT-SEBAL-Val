@@ -6,7 +6,7 @@ from pathlib import Path
 # STEP1 Variables 
 # ------------------------------- #
 
-ROW_PATH = '149039'
+ROW_PATH = '150039'
 SAVE_PLOT = False
 RESCALING = True
 TEMPORAL_WIN = 0   # days for temporal matching
@@ -35,16 +35,16 @@ COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
 # ------------------------------- #
 
 COMBINE_VALIDATIONS = True
-# MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
-MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
+MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
+# MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
 OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
 
-
+BASE_DIR_RESULTS = Path(fr".\validations_UQ\results")
 if COMBINE_VALIDATIONS:
     INPUT_FOLDER= MASTER_FOLDER
-    OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.xlsx'
-    PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.png'
+    OUTPUT_FILE = BASE_DIR_RESULTS / f'validations_tw_{TEMPORAL_WIN}.xlsx'
+    PLOT_OUTPUT_FILE = BASE_DIR_RESULTS / f'validations_tw_{TEMPORAL_WIN}.png'
 else:
     INPUT_FOLDER= VALIDATION_FOLDER
-    OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
-    PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.png'
+    OUTPUT_FILE = BASE_DIR_RESULTS / f'validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
+    PLOT_OUTPUT_FILE = BASE_DIR_RESULTS / f'validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.png'
