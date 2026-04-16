@@ -27,11 +27,25 @@ SHOW_ALL_PLOTS = False     # show box/CI plots for non-final runs
 WIT_SMS_PATH = r"D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily"
 RASTER_BASE = r"D:/SEBAL/datasets/validation/LBDC_validations/rzsm"  # expects: {RASTER_BASE}/{member}/{row}/
 
-# outputs
-VAL_BASE = Path(r".\validations_UQ\validation_points")  # expects: {VAL_BASE}/{member}/{row}_{tw}/
-FIG_BASE = Path(r".\validations_UQ\figs")
-RESULTS_BASE = Path(r".\validations_UQ\results")
+# outputs validations
+VAL_BASE = Path(r".\validations_Output\validation_points")  # expects: {VAL_BASE}/{member}/{row}_{tw}/
+FIG_BASE = Path(r".\validations_Output\figs")
+RESULTS_BASE = Path(r".\validations_Output\results")
 
+
+# outputs UQ
+UQ_BASE = Path(fr".\UQ_Output\validation_points")
+FIG_BASE_UQ = Path(fr".\UQ_Output\figs")
+RESULTS_BASE_UQ = Path(fr".\UQ_Output\results")
+
+# TODO: plotting not working for UQ yet to save them
+SAVE_ALL_PLOTS_UQ = True       
+SHOW_ALL_PLOTS_UQ = False 
+
+# MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# UPPER_DIR  = BASE_DIR / "upper" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
 
 # ------------------------------- #
 # STEP1 Variables 
@@ -54,12 +68,12 @@ METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\mean\metadata_{ROW_PA
 # ------------------------------- #
 # STEP 1b Combining validations for UQ
 # ------------------------------- #
-BASE_DIR = Path(fr".\validations_UQ\validation_points")
+# BASE_DIR = Path(fr".\UQ\validation_points")
 
-MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
-LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
-UPPER_DIR  = BASE_DIR / "upper" / f"{ROW_PATH}_{TEMPORAL_WIN}"
-COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# UPPER_DIR  = BASE_DIR / "upper" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
 
 # ------------------------------- #
 # STEP 2 variables

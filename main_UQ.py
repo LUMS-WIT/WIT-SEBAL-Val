@@ -251,37 +251,37 @@ def combine_UQ():
 def validations():
 
 
-    # # ----------------------------------------------------------------------
-    # # STEP 3 : SEBAL uncertainty analysis (error propagation)
-    # # ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
+    # STEP 3 : SEBAL uncertainty analysis (error propagation)
+    # ----------------------------------------------------------------------
 
-    # uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
-    # uq_stats = compute_statistics(uq_dict)
+    uq_dict, uq_values = sebal_uncertainty_analysis(INPUT_FOLDER)
+    uq_stats = compute_statistics(uq_dict)
 
-    # print('------------- SEBAL model uncertainty ----------------')
-    # print(uq_stats)
+    print('------------- SEBAL model uncertainty ----------------')
+    print(uq_stats)
 
-    # plot_uncertainty_boxplot(uq_dict)
-    # coverage = compute_coverage_probability(uq_values)
-    # print('\nCoverage Probability at 95% confidence interval:', coverage)
+    plot_uncertainty_boxplot(uq_dict)
+    coverage = compute_coverage_probability(uq_values)
+    print('\nCoverage Probability at 95% confidence interval:', coverage)
 
-    # usr = uncertainty_signal_ratio(uq_values)
-    # print('Uncertainty Signal Ratio:', usr)
+    usr = uncertainty_signal_ratio(uq_values)
+    print('Uncertainty Signal Ratio:', usr)
 
-    # # Convert uq_stats dictionary to DataFrame
-    # uq_stats_df = pd.DataFrame(uq_stats).T
-    # uq_stats_df.index.name = 'Metric'
+    # Convert uq_stats dictionary to DataFrame
+    uq_stats_df = pd.DataFrame(uq_stats).T
+    uq_stats_df.index.name = 'Metric'
 
-    # uq_stats_df['USR'] = usr
+    uq_stats_df['USR'] = usr
 
-    # # Save to Excel
-    # output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
-    # uq_stats_df.to_excel(output_excel)
+    # Save to Excel
+    output_excel = 'validations_UQ\\results\\SEBAL_uncertainty_summary.xlsx'
+    uq_stats_df.to_excel(output_excel)
 
-    # plot_uncertainty_distribution(uq_values)
-    # plot_gpi_uncertainty(uq_values)
-    # plot_relative_uncertainty_vs_sm(uq_values)
-    # plot_coverage_probability(uq_values)
+    plot_uncertainty_distribution(uq_values)
+    plot_gpi_uncertainty(uq_values)
+    plot_relative_uncertainty_vs_sm(uq_values)
+    plot_coverage_probability(uq_values)
  
 
     # ----------------------------------------------------------------------
