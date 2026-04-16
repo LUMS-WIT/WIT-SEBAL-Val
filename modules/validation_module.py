@@ -16,7 +16,7 @@ from utils import (
     plot_metric_with_ci,
 )
 
-from scaling import scaling, temporal_matching
+from scaling import scaling, temporal_matching, temporal_matching_windowed
 from sms_calibration import sms_calibrations
 
 
@@ -47,6 +47,21 @@ def figs_row_folder(fig_base: Path, row_path: str) -> Path:
 
 def results_file(results_base: Path, name: str, temporal_win: int) -> Path:
     return results_base / f"{name}_tw_{temporal_win}.xlsx"
+
+def tw_to_window_params(tw: int):
+    """
+    tw is in days (0, 3, 5, 7).
+    Returns (half_window, min_valid).
+    """
+    if tw == 0:
+        return 0, 1
+    if tw == 3:
+        return 1, 2
+    if tw == 5:
+        return 2, 3
+    if tw == 7:
+        return 3, 4
+    raise ValueError(f"Unsupported TEMPORAL_WIN={tw}. Use one of: 0, 3, 5, 7.")
 
 
 # -------------------------
@@ -182,9 +197,28 @@ def generate_overlaps(
             csv_dates, csv_values = ref_data
             raster_dates, raster_values = test_data
 
-        common_dates, ref_values, test_values, overlap_count = temporal_matching(
-            test_data, ref_data, temporal_win
-        )
+        # --- temporal matching ---
+        if temporal_win == 0:
+            # keep existing behavior for backward compatibility
+            common_dates, ref_values, test_values, overlap_count = temporal_matching(
+                test_data, ref_data, temporal_win
+            )
+        else:
+            half_window, min_valid = tw_to_window_params(temporal_win)
+
+            (
+                common_dates,
+                ref_values,      # aggregated sensor values (WIT)
+                test_values,     # matched model values (SEBAL)
+                overlap_count,
+                n_sensor_used,
+                used_sensor_dates,
+            ) = temporal_matching_windowed(
+                model_data=test_data,
+                sensor_data=ref_data,
+                half_window=half_window,
+                min_valid=min_valid
+            )
 
         _metadata["overlaps"] = overlap_count
         if overlap_count > 0:
@@ -282,11 +316,11 @@ def run_validations_and_save_all(
     # - show_all_plots -> display
     # - save_all_plots -> save to disk (even if not displaying)
     if save_all_plots:
-        plot_box_and_whiskers(metrics_dict, filename=str(figs_out_dir / f"boxplot_{tag}.png"), save=True, show=show_all_plots)
+        plot_box_and_whiskers(metrics_dict, filename=str(figs_out_dir / f"boxplot_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
         plot_metric_with_ci(metrics_dict, metric="ubrmsd",
-                            filename=str(figs_out_dir / f"ci_ubrmsd_{tag}.png"), save=True, show=show_all_plots)
+                            filename=str(figs_out_dir / f"ci_ubrmsd_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
         plot_metric_with_ci(metrics_dict, metric="bias",
-                            filename=str(figs_out_dir / f"ci_bias_{tag}.png"), save=True, show=show_all_plots)
+                            filename=str(figs_out_dir / f"ci_bias_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
     elif show_all_plots:
         # show only (no saving)
         plot_box_and_whiskers(metrics_dict, save=False, show=True)

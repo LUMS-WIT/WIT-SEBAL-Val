@@ -11,7 +11,7 @@ UQ_MEMBERS = ["mean", "lower", "upper"]
 VALIDATION_MEMBER = "mean"
 
 # temporal matching
-TEMPORAL_WIN = 0
+TEMPORAL_WIN = 0    # days for temporal window 3, 5,7
 RESCALING = True
 OUTLIER_THRESHOLD = -0.47
 
@@ -40,7 +40,7 @@ RESULTS_BASE = Path(r".\validations_UQ\results")
 ROW_PATH = '150039'
 SAVE_PLOT = False
 RESCALING = True
-TEMPORAL_WIN = 0   # days for temporal matching
+# TEMPORAL_WIN = 0   # days for temporal matching
 
 # input datasets
 WIT_SMS_PATH = 'D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily'
