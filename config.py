@@ -1,31 +1,44 @@
 from pathlib import Path
 
-# configuration file consisting of variables and paths
-
-
-from pathlib import Path
-
+# rows to run (2 rows for your case, but can be 1)
 ROW_PATHS = ["149039", "150039"]
-RASTER_STATS = ["mean", "lower", "upper"]
 
-RUN_VALIDATION = True
-RUN_UQ = False
+# UQ members kept for FUTURE workflows (uncertainty etc.)
+# Validation workflow will ONLY use VALIDATION_MEMBER
+UQ_MEMBERS = ["mean", "lower", "upper"]
 
-WIT_SMS_PATH = "D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily"
+# member used by validations routine
+VALIDATION_MEMBER = "mean"
 
-SAVE_PLOT = True
-RESCALING = True
+# temporal matching
 TEMPORAL_WIN = 0
+RESCALING = True
+OUTLIER_THRESHOLD = -0.47
 
-OUTLIER_THRESHOLD = None
-COMBINE_VALIDATIONS = False
+# plotting
+SAVE_ALL_PLOTS = True          # save per-site time-series plots during overlaps
+SHOW_ALL_PLOTS = False     # show box/CI plots for non-final runs
+
+# =========================
+# Base paths only
+# =========================
+
+# inputs
+WIT_SMS_PATH = r"D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily"
+RASTER_BASE = r"D:/SEBAL/datasets/validation/LBDC_validations/rzsm"  # expects: {RASTER_BASE}/{member}/{row}/
+
+# outputs
+VAL_BASE = Path(r".\validations_UQ\validation_points")  # expects: {VAL_BASE}/{member}/{row}_{tw}/
+FIG_BASE = Path(r".\validations_UQ\figs")
+RESULTS_BASE = Path(r".\validations_UQ\results")
+
 
 # ------------------------------- #
 # STEP1 Variables 
 # ------------------------------- #
 
-ROW_PATH = '149039'
-SAVE_PLOT = True
+ROW_PATH = '150039'
+SAVE_PLOT = False
 RESCALING = True
 TEMPORAL_WIN = 0   # days for temporal matching
 

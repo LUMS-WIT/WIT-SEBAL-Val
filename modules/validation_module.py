@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
-
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from utils import (
     SoilMoistureData,
@@ -14,89 +14,156 @@ from utils import (
     compute_statistics,
     plot_box_and_whiskers,
     plot_metric_with_ci,
-    plot_paired,
 )
 
 from scaling import scaling, temporal_matching
 from sms_calibration import sms_calibrations
 
-from config import (
-    OUTLIER_THRESHOLD,
-    COMBINE_VALIDATIONS,
-)
+
+# -------------------------
+# Path helpers
+# -------------------------
+def raster_folder(raster_base: str, member: str, row_path: str) -> str:
+    return fr"{raster_base}/{member}/{row_path}/"
 
 
-def build_validation_case_config(
-    row_path,
-    raster_stat,
-    wit_sms_path,
-    rescaling,
-    save_plot,
-    temporal_window,
+def validation_folder(val_base: Path, member: str, row_path: str, temporal_win: int) -> Path:
+    return val_base / member / f"{row_path}_{temporal_win}"
+
+
+def metadata_file(val_base: Path, member: str, row_path: str, temporal_win: int) -> Path:
+    return val_base / member / f"metadata_{row_path}_tw_{temporal_win}.xlsx"
+
+
+def images_folder(fig_base: Path, member: str, row_path: str) -> Path:
+    # per-site time-series plots (SAVE_PLOT=True)
+    return fig_base / member / row_path
+
+
+def figs_row_folder(fig_base: Path, row_path: str) -> Path:
+    # validation plots for a row: figs/149039, figs/150039
+    return fig_base / row_path
+
+
+def results_file(results_base: Path, name: str, temporal_win: int) -> Path:
+    return results_base / f"{name}_tw_{temporal_win}.xlsx"
+
+
+# -------------------------
+# Listing + metadata
+# -------------------------
+def list_validation_files(folder: Path) -> list[str]:
+    if not folder.exists():
+        return []
+    return [
+        str(folder / f)
+        for f in os.listdir(folder)
+        if f.endswith(".xlsx") and "witgpi" in f
+    ]
+
+
+def list_validation_files_multi(folders: list[Path]) -> list[str]:
+    files: list[str] = []
+    for folder in folders:
+        files.extend(list_validation_files(folder))
+    return files
+
+
+def read_metadata_df(metadata_xlsx: Path) -> pd.DataFrame:
+    df = pd.read_excel(metadata_xlsx)
+    df["gpi"] = df["gpi"].astype(str)
+    return df
+
+
+def merge_metadata(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
+    out = pd.concat([df_a, df_b], ignore_index=True)
+    out["gpi"] = out["gpi"].astype(str)
+    return out
+
+
+# -------------------------
+# Plotting (paired: always DISPLAY + SAVE)
+# -------------------------
+def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict, title: str):
+    x = paired_values["sebal_sm"].to_numpy(dtype=float)
+    y = paired_values["wit_sm"].to_numpy(dtype=float)
+
+    fig, ax = plt.subplots(figsize=(6.5, 6.5))
+    ax.scatter(x, y, s=12, alpha=0.5, edgecolors="none")
+
+    if x.size and y.size:
+        min_v = float(min(x.min(), y.min()))
+        max_v = float(max(x.max(), y.max()))
+        ax.plot([min_v, max_v], [min_v, max_v], "--", color="gray", linewidth=1)
+
+    ax.set_xlabel("SEBAL-derived Soil Moisture (m³/m³)")
+    ax.set_ylabel("WITSMS Soil Moisture (m³/m³)")
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.set_aspect("equal", adjustable="box")
+
+    mean_bias = stats_results["bias"]["mean"]
+    mean_mse = stats_results["mse"]["mean"]
+    mean_p = stats_results["p_rho"]["mean"]
+    mean_s = stats_results["s_rho"]["mean"]
+    mean_ubr = stats_results["ubrmsd"]["mean"]
+
+    rmse_disp = (mean_mse ** 0.5) if mean_mse is not None else float("nan")
+    textstr = (
+        f"Bias = {mean_bias:.3f} m³/m³\n"
+        f"RMSE = {rmse_disp:.3f} m³/m³\n"
+        f"ubRMSD = {mean_ubr:.3f} m³/m³\n"
+        f"R = {mean_p:.3f}\n"
+        fr"$\rho$ = {mean_s:.3f}"
+        f"\nN = {len(paired_values)}"
+    )
+    ax.text(
+        0.02, 0.98, textstr,
+        transform=ax.transAxes,
+        va="top", ha="left",
+        bbox=dict(facecolor="white", edgecolor="gray", alpha=0.9),
+    )
+
+    fig.tight_layout()
+    return fig
+
+
+def save_fig(fig, out_png: Path):
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_png, dpi=300, bbox_inches="tight")
+    print(f"[plot] saved -> {out_png}")
+
+
+# -------------------------
+# Step 1: overlaps
+# -------------------------
+def generate_overlaps(
+    *,
+    row_path: str,
+    member: str,
+    wit_sms_path: str,
+    raster_folder_path: str,
+    validation_folder_path: Path,
+    images_folder_path: Path,
+    metadata_file_path: Path,
+    temporal_win: int,
+    rescaling: bool,
+    save_plot: bool,
 ):
-    """
-    Build all paths for one validation case.
+    validation_folder_path.mkdir(parents=True, exist_ok=True)
+    images_folder_path.mkdir(parents=True, exist_ok=True)
 
-    Adjust only this function if your folder structure changes.
-    """
-    raster_folder_path = Path(
-        f"D:/SEBAL/datasets/validation/LBDC_validations/rzsm/{raster_stat}/{row_path}"
-    )
-
-    validation_folder = Path(
-        f"./validations/{raster_stat}/{row_path}/tw_{temporal_window}"
-    )
-
-    images_folder = validation_folder / "images"
-    metadata_file_path = validation_folder / f"metadata_{row_path}_{raster_stat}_tw_{temporal_window}.xlsx"
-    output_file = Path(f"./validations/results/validations_{raster_stat}_{row_path}_tw_{temporal_window}.xlsx")
-    plot_output_file = Path(f"./validations/results/plots_{raster_stat}_{row_path}_tw_{temporal_window}.png")
-
-    validation_folder.mkdir(parents=True, exist_ok=True)
-    images_folder.mkdir(parents=True, exist_ok=True)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    return {
-        "row_path": row_path,
-        "raster_stat": raster_stat,
-        "wit_sms_path": wit_sms_path,
-        "raster_folder_path": raster_folder_path,
-        "validation_folder": validation_folder,
-        "images_folder": images_folder,
-        "metadata_file_path": metadata_file_path,
-        "output_file": output_file,
-        "plot_output_file": plot_output_file,
-        "rescaling": rescaling,
-        "save_plot": save_plot,
-        "temporal_window": temporal_window,
-    }
-
-
-def generate_overlaps_for_case(case_cfg):
-    """
-    Generate overlap files for a single case.
-    Equivalent to your legacy generate_overlaps() logic,
-    but isolated from main execution.
-    """
-    soil_moisture_data = SoilMoistureData(case_cfg["wit_sms_path"])
+    soil_moisture_data = SoilMoistureData(wit_sms_path)
     soil_moisture_data.read_data()
-
     metadata = soil_moisture_data.get_metadata()
-    raster_data = SebalSoilMoistureData(
-        str(case_cfg["raster_folder_path"]),
-        pattern="Root_zone_moisture",
-    )
+
+    raster_data = SebalSoilMoistureData(raster_folder_path, pattern="Root_zone_moisture")
 
     validation_metadata = []
-
-    print(
-        f"Performing temporal matching with temporal window "
-        f"of {case_cfg['temporal_window']} days"
-    )
+    print(f"[overlaps] member={member} row={row_path} tw={temporal_win}")
 
     for _metadata in metadata:
-        lat = float(_metadata["latitude"])
-        lon = float(_metadata["longitude"])
+        lat, lon = float(_metadata["latitude"]), float(_metadata["longitude"])
 
         csv_dates, csv_values = soil_moisture_data.get_soil_moisture_by_location(lat, lon)
         raster_dates, raster_values = raster_data.get_data(lat, lon)
@@ -107,85 +174,65 @@ def generate_overlaps_for_case(case_cfg):
         csv_dates, csv_values = remove_nan_entries(csv_dates, csv_values)
         raster_dates, raster_values = remove_nan_entries(raster_dates, raster_values)
 
-        ref_data = (csv_dates, csv_values)         # WIT SMS
-        test_data = (raster_dates, raster_values)  # SEBAL
+        ref_data = sms_calibrations((csv_dates, csv_values))
+        test_data = (raster_dates, raster_values)
 
-        ref_data = sms_calibrations(ref_data)
-
-        if case_cfg["rescaling"]:
+        if rescaling:
             test_data, _ = scaling(test_data, ref_data)
             csv_dates, csv_values = ref_data
             raster_dates, raster_values = test_data
 
         common_dates, ref_values, test_values, overlap_count = temporal_matching(
-            test_data,
-            ref_data,
-            case_cfg["temporal_window"],
+            test_data, ref_data, temporal_win
         )
 
-        _metadata_copy = dict(_metadata)
-        _metadata_copy["overlaps"] = overlap_count
-
+        _metadata["overlaps"] = overlap_count
         if overlap_count > 0:
-            validation_metadata.append(_metadata_copy)
+            validation_metadata.append(_metadata)
 
             data_to_save = list(zip(common_dates, ref_values, test_values))
             headers = ["Timestamp", "wit_sm", "sebal_sm"]
+            fname = f"sebal_{row_path}_{member}_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.xlsx"
+            save_to_excel(data_to_save, str(validation_folder_path / fname), headers)
 
-            file_name = (
-                f"sebal_{case_cfg['row_path']}_{case_cfg['raster_stat']}"
-                f"_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.xlsx"
-            )
-            out_file = case_cfg["validation_folder"] / file_name
-            save_to_excel(data_to_save, str(out_file), headers)
-
-            if case_cfg["save_plot"]:
-                img_name = (
-                    f"sebal_{case_cfg['row_path']}_{case_cfg['raster_stat']}"
-                    f"_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.png"
-                )
-                img_file = case_cfg["images_folder"] / img_name
+            if save_plot:
+                img_name = f"sebal_{row_path}_{member}_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.png"
                 save_to_plot(
-                    csv_dates,
-                    csv_values,
-                    raster_dates,
-                    raster_values,
-                    lat,
-                    lon,
-                    str(img_file),
+                    csv_dates, csv_values,
+                    raster_dates, raster_values,
+                    lat, lon,
+                    str(images_folder_path / img_name),
                 )
 
-    print("Total number of overlapping in-situ sensors:", len(validation_metadata))
-    save_metadata(validation_metadata, str(case_cfg["metadata_file_path"]))
+    save_metadata(validation_metadata, str(metadata_file_path))
+    print(f"[overlaps] member={member} row={row_path} sensors={len(validation_metadata)}")
 
 
-def run_validations_for_case(case_cfg):
-    """
-    Run site-level metrics + summary generation for one case.
-    Equivalent to your legacy validations() block.
-    """
-    input_folder = case_cfg["validation_folder"]
-
+# -------------------------
+# Step 2: validations (paired always DISPLAY + SAVE)
+# -------------------------
+def run_validations_and_save_all(
+    *,
+    tag: str,
+    files: list[str],
+    metadata_df: pd.DataFrame,
+    output_xlsx: Path,
+    figs_out_dir: Path,
+    outlier_threshold: float,
+    show_all_plots: bool,
+    save_all_plots: bool,
+    temporal_win: int,
+):
     metrics_dict, num_of_obs, paired_values = validations_gpi_adv(
-        str(input_folder),
-        threshold=OUTLIER_THRESHOLD,
+        files=files,
+        threshold=outlier_threshold,
     )
-
     stats_results = compute_statistics(metrics_dict)
 
-    print("------------- results for gpi based metrics ----------------")
-    print("Number of Observations N:", num_of_obs)
-    print(stats_results)
-
-    plot_box_and_whiskers(metrics_dict, str(case_cfg["plot_output_file"]), False)
-    plot_metric_with_ci(metrics_dict, metric="ubrmsd")
-    plot_metric_with_ci(metrics_dict, metric="bias")
-
-    df = pd.read_excel(case_cfg["metadata_file_path"])
-    df["gpi"] = df["gpi"].astype(str)
-
+    # Write workbook
     metrics_df = pd.DataFrame(metrics_dict)
-    merged_df = pd.merge(df, metrics_df, on="gpi", how="left")
+    metrics_df["gpi"] = metrics_df["gpi"].astype(str)
+    merged_df = pd.merge(metadata_df, metrics_df, on="gpi", how="left")
 
     summary_data = {
         "Metric": ["bias", "mse", "ubrmsd", "p_rho", "s_rho"],
@@ -211,24 +258,39 @@ def run_validations_for_case(case_cfg):
             stats_results["s_rho"]["IQR"],
         ],
     }
-
     summary_df = pd.DataFrame(summary_data)
+    obs_df = pd.DataFrame({"Metric": ["Observations"], "mean": [num_of_obs], "median": [""], "IQR": [""]})
+    summary_df = pd.concat([obs_df, summary_df], ignore_index=True)
 
-    observations_df = pd.DataFrame(
-        {
-            "Metric": ["Observations"],
-            "mean": [num_of_obs],
-            "median": [""],
-            "IQR": [""],
-        }
-    )
-
-    summary_df = pd.concat([observations_df, summary_df], ignore_index=True)
-
-    with pd.ExcelWriter(case_cfg["output_file"], engine="xlsxwriter") as writer:
-        if not COMBINE_VALIDATIONS:
-            merged_df.to_excel(writer, sheet_name="MetaData", index=False)
+    output_xlsx.parent.mkdir(parents=True, exist_ok=True)
+    with pd.ExcelWriter(output_xlsx, engine="xlsxwriter") as writer:
+        merged_df.to_excel(writer, sheet_name="MetaData", index=False)
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
-    print("Validations saved to", case_cfg["output_file"])
-    plot_paired(paired_values, stats_results)
+    print(f"[validate] {tag} saved -> {output_xlsx}")
+
+    figs_out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Paired scatter: ALWAYS DISPLAY + SAVE
+    paired_png = figs_out_dir / f"paired_scatter_tw_{temporal_win}.png"
+    fig = make_paired_scatter_figure(paired_values, stats_results, title=tag)
+    save_fig(fig, paired_png)
+    plt.show()          # display
+    plt.close(fig)      # close after display to avoid memory buildup
+
+    # Extra plots:
+    # - show_all_plots -> display
+    # - save_all_plots -> save to disk (even if not displaying)
+    if save_all_plots:
+        plot_box_and_whiskers(metrics_dict, filename=str(figs_out_dir / f"boxplot_{tag}.png"), save=True, show=show_all_plots)
+        plot_metric_with_ci(metrics_dict, metric="ubrmsd",
+                            filename=str(figs_out_dir / f"ci_ubrmsd_{tag}.png"), save=True, show=show_all_plots)
+        plot_metric_with_ci(metrics_dict, metric="bias",
+                            filename=str(figs_out_dir / f"ci_bias_{tag}.png"), save=True, show=show_all_plots)
+    elif show_all_plots:
+        # show only (no saving)
+        plot_box_and_whiskers(metrics_dict, save=False, show=True)
+        plot_metric_with_ci(metrics_dict, metric="ubrmsd", save=False, show=True)
+        plot_metric_with_ci(metrics_dict, metric="bias", save=False, show=True)
+
+    return metrics_dict, num_of_obs, paired_values, stats_results

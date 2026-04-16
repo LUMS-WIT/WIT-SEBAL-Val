@@ -573,7 +573,7 @@ def compute_statistics(data_dict):
     return stats_results
 
 
-def plot_box_and_whiskers(metrics_dict, filename= None, save= False):
+def plot_box_and_whiskers(metrics_dict, filename= None, save= False, show= False):
     # Creating the plot
     fig, ax = plt.subplots()
     # Prepare data for plotting
@@ -613,14 +613,19 @@ def plot_box_and_whiskers(metrics_dict, filename= None, save= False):
 
     # Add horizontal grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
-    plt.show()
 
     # Save the plot if requested
     if save:
         fig.savefig(filename)
         print(f'Plot saved as {filename}')
+    
+    if show:
+        plt.show()
 
-def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
+    plt.close(fig)
+    return fig
+
+def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False, show=False):
     """
     Plots a box-and-whiskers plot for a specified metric along with its confidence intervals.
 
@@ -688,16 +693,27 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False):
     # Add grid lines
     ax.yaxis.grid(True, linestyle='-', which='major', color='lightgrey', alpha=0.5)
 
-    # Show the plot
-    plt.show()
-
     # Save the plot if requested
     if save and filename:
         fig.savefig(filename)
         print(f"Plot saved as {filename}")
 
+    if show:
+        plt.show()
 
-def validations_gpi_adv(folder_path, threshold=-0.47, alpha=0.05):
+    plt.close(fig)
+    return fig
+
+# def validations_gpi_adv(folder_path, threshold=-0.47, alpha=0.05):
+def validations_gpi_adv(folder_path=None, files=None, threshold=-0.47, alpha=0.05):
+    if files is None:
+        if folder_path is None:
+            raise ValueError("Provide either folder_path or files.")
+        files = [
+            os.path.join(folder_path, f)
+            for f in os.listdir(folder_path)
+            if f.endswith(".xlsx") and "witgpi" in f
+        ]
     """
     Validates GPI metrics and calculates confidence intervals for ubrmsd.
     Also returns the filtered paired values (sebal_sm, wit_sm) used for metrics.
@@ -736,17 +752,19 @@ def validations_gpi_adv(folder_path, threshold=-0.47, alpha=0.05):
 
     # Collect final paired values used for plotting
     paired_records = []
+    total_files = len(files)
+    print(f"Reading {total_files} files...")  # Debugging output
 
-    if COMBINE_VALIDATIONS:
-        specific_folder_name = f'*_{TEMPORAL_WIN}'
-        files = combine_val_files(INPUT_FOLDER, specific_folder_name)
-        total_files = len(files)
-        print(f"Reading {total_files} files...")
-    else:
-        files = [os.path.join(folder_path, f) for f in os.listdir(folder_path)
-                 if f.endswith(".xlsx") and 'witgpi' in f]
-        total_files = len(files)
-        print(f"Reading {total_files} files...")
+    # if COMBINE_VALIDATIONS:
+    #     specific_folder_name = f'*_{TEMPORAL_WIN}'
+    #     files = combine_val_files(INPUT_FOLDER, specific_folder_name)
+    #     total_files = len(files)
+    #     print(f"Reading {total_files} files...")
+    # else:
+    #     files = [os.path.join(folder_path, f) for f in os.listdir(folder_path)
+    #              if f.endswith(".xlsx") and 'witgpi' in f]
+    #     total_files = len(files)
+    #     print(f"Reading {total_files} files...")
 
     pattern = r'witgpi_([^_]+)_'
     observations = 0

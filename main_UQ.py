@@ -23,7 +23,7 @@ from config import OUTLIER_THRESHOLD, ROW_PATH, WIT_SMS_PATH, RASTER_FOLDER_PATH
 
 from config import COMBINE_VALIDATIONS, INPUT_FOLDER, OUTPUT_FILE, PLOT_OUTPUT_FILE
 
-from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, BASE_DIR_RESULTS, COMBINE_DIR
+from config import MEAN_DIR, LOWER_DIR, UPPER_DIR, COMBINE_DIR #BASE_DIR_RESULTS
 
 if not os.path.exists(VALIDATION_FOLDER):
     # Create the folder
@@ -320,7 +320,7 @@ def validations():
     observations_df = pd.DataFrame({'Metric': ['Observations'], 'mean': [num_of_obs], 'median': [''], 'IQR': ['']})
     summary_df = pd.concat([observations_df, summary_df], ignore_index=True)
 
-    BASE_DIR_RESULTS.mkdir(exist_ok=True)
+    # BASE_DIR_RESULTS.mkdir(exist_ok=True)
     if COMBINE_VALIDATIONS:
         # Save only the summary
         with pd.ExcelWriter(OUTPUT_FILE, engine='xlsxwriter') as writer:
@@ -351,7 +351,7 @@ if __name__ == "__main__":
     print('------------  Step : 1 ----------------------')
     print('------- Generating overlaping gpi -----------')
     print('---------------------------------------------')
-    generate_overlaps()
+    # generate_overlaps()
     # exit()
 
     print('---------------------------------------------')
