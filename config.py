@@ -11,12 +11,12 @@ UQ_MEMBERS = ["mean", "lower", "upper"]
 VALIDATION_MEMBER = "mean"
 
 # temporal matching
-TEMPORAL_WIN = 0    # days for temporal window 3, 5,7
+TEMPORAL_WIN = 7    # days for temporal window 3, 5,7
 RESCALING = True
 OUTLIER_THRESHOLD = -0.47
 
 # plotting
-SAVE_ALL_PLOTS = True          # save per-site time-series plots during overlaps
+SAVE_ALL_PLOTS = False          # save per-site time-series plots during overlaps
 SHOW_ALL_PLOTS = False     # show box/CI plots for non-final runs
 
 # =========================
@@ -41,6 +41,18 @@ RESULTS_BASE_UQ = Path(fr".\UQ_Output\results")
 # TODO: plotting not working for UQ yet to save them
 SAVE_ALL_PLOTS_UQ = True       
 SHOW_ALL_PLOTS_UQ = False 
+
+
+# ---- Volatility / inter-overpass diagnostics ----
+RUN_INTER_OVERPASS_DIAGNOSTICS = True
+
+INTER_OVERPASS_RASTER_STATS = ["mean"]   # keep simple for now
+MIN_VALID_INCREMENTS = 2
+EPSILON_MISSED_VARIATION = 1e-9
+
+VALIDATIONS_OUTPUT_BASE = Path(r".\validations_Output")
+VOLATILITY_OUTPUT_BASE = Path(r".\volatility_Output")
+
 
 # MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
 # LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
