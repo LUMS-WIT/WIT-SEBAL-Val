@@ -1,330 +1,459 @@
-import os
+from __future__ import annotations
+
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
+
+import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
-from utils import (
-    SoilMoistureData,
-    SebalSoilMoistureData,
-    remove_nan_entries,
-    save_to_excel,
-    save_metadata,
-    save_to_plot,
-    validations_gpi_adv,
-    compute_statistics,
-    plot_box_and_whiskers,
-    plot_metric_with_ci,
-)
-
-from scaling import scaling, temporal_matching, temporal_matching_windowed
+from utils import SoilMoistureData, SebalSoilMoistureData, remove_nan_entries
 from sms_calibration import sms_calibrations
+from scaling import scaling
 
 
-# -------------------------
-# Path helpers
-# -------------------------
-def raster_folder(raster_base: str, member: str, row_path: str) -> str:
-    return fr"{raster_base}/{member}/{row_path}/"
+@dataclass(frozen=True)
+class SiteMeta:
+    gpi: str
+    lat: float
+    lon: float
 
 
-def validation_folder(val_base: Path, member: str, row_path: str, temporal_win: int) -> Path:
-    return val_base / member / f"{row_path}_{temporal_win}"
-
-
-def metadata_file(val_base: Path, member: str, row_path: str, temporal_win: int) -> Path:
-    return val_base / member / f"metadata_{row_path}_tw_{temporal_win}.xlsx"
-
-
-def images_folder(fig_base: Path, member: str, row_path: str) -> Path:
-    # per-site time-series plots (SAVE_PLOT=True)
-    return fig_base / member / row_path
-
-
-def figs_row_folder(fig_base: Path, row_path: str) -> Path:
-    # validation plots for a row: figs/149039, figs/150039
-    return fig_base / row_path
-
-
-def results_file(results_base: Path, name: str, temporal_win: int) -> Path:
-    return results_base / f"{name}_tw_{temporal_win}.xlsx"
-
-def tw_to_window_params(tw: int):
-    """
-    tw is in days (0, 3, 5, 7).
-    Returns (half_window, min_valid).
-    """
-    if tw == 0:
-        return 0, 1
-    if tw == 3:
-        return 1, 2
-    if tw == 5:
-        return 2, 3
-    if tw == 7:
-        return 3, 4
-    raise ValueError(f"Unsupported TEMPORAL_WIN={tw}. Use one of: 0, 3, 5, 7.")
-
-
-# -------------------------
-# Listing + metadata
-# -------------------------
-def list_validation_files(folder: Path) -> list[str]:
-    if not folder.exists():
-        return []
-    return [
-        str(folder / f)
-        for f in os.listdir(folder)
-        if f.endswith(".xlsx") and "witgpi" in f
-    ]
-
-
-def list_validation_files_multi(folders: list[Path]) -> list[str]:
-    files: list[str] = []
-    for folder in folders:
-        files.extend(list_validation_files(folder))
-    return files
-
-
-def read_metadata_df(metadata_xlsx: Path) -> pd.DataFrame:
-    df = pd.read_excel(metadata_xlsx)
-    df["gpi"] = df["gpi"].astype(str)
+def _to_df(dates, values, value_col: str) -> pd.DataFrame:
+    d = pd.to_datetime(pd.Series(list(dates)), errors="coerce").dt.normalize()
+    v = pd.to_numeric(pd.Series(list(values)), errors="coerce")
+    df = pd.DataFrame({"date": d, value_col: v})
+    df = df.dropna(subset=["date", value_col])
+    df = df.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
     return df
 
 
-def merge_metadata(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
-    out = pd.concat([df_a, df_b], ignore_index=True)
-    out["gpi"] = out["gpi"].astype(str)
+def _safe_corr(x: pd.Series, y: pd.Series, method: str = "pearson") -> float:
+    d = pd.DataFrame({"x": x, "y": y}).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(d) < 3:
+        return np.nan
+    return float(d["x"].corr(d["y"], method=method))
+
+
+def _rmse(x: np.ndarray, y: np.ndarray) -> float:
+    return float(np.sqrt(np.nanmean((y - x) ** 2))) if len(x) else np.nan
+
+
+def _bias(x: np.ndarray, y: np.ndarray) -> float:
+    return float(np.nanmean(y - x)) if len(x) else np.nan
+
+
+def _ubrmsd(x: np.ndarray, y: np.ndarray) -> float:
+    if len(x) == 0:
+        return np.nan
+    xd = x - np.nanmean(x)
+    yd = y - np.nanmean(y)
+    return float(np.sqrt(np.nanmean((yd - xd) ** 2)))
+
+
+def load_site_sensor_daily(
+    soil: SoilMoistureData,
+    lat: float,
+    lon: float,
+    apply_sms_calibration: bool = True,
+) -> pd.DataFrame:
+    dates, values = soil.get_soil_moisture_by_location(lat, lon)
+    dates, values = remove_nan_entries(dates, values)
+
+    data = (dates, values)
+    if apply_sms_calibration:
+        data = sms_calibrations(data)
+
+    sensor_df = _to_df(data[0], data[1], "x")
+    return sensor_df
+
+
+def load_site_model_full(
+    raster_data: SebalSoilMoistureData,
+    lat: float,
+    lon: float,
+) -> pd.DataFrame:
+    dates, values = raster_data.get_data(lat, lon)
+    if dates is None or values is None:
+        return pd.DataFrame(columns=["date", "y"])
+
+    dates, values = remove_nan_entries(dates, values)
+    model_df = _to_df(dates, values, "y")
+    return model_df
+
+
+def maybe_rescale_model_to_sensor(
+    sensor_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    apply_rescaling: bool = True,
+) -> pd.DataFrame:
+    if not apply_rescaling or sensor_df.empty or model_df.empty:
+        return model_df
+
+    sensor_data = (list(sensor_df["date"]), list(sensor_df["x"]))
+    model_data = (list(model_df["date"]), list(model_df["y"]))
+
+    try:
+        scaled_model_data, _ = scaling(model_data, sensor_data)
+        scaled_df = _to_df(scaled_model_data[0], scaled_model_data[1], "y")
+        return scaled_df
+    except Exception:
+        return model_df
+
+
+def _sensor_window_mean(
+    sensor_map: dict,
+    center_date: pd.Timestamp,
+    total_window: int,
+) -> tuple[float, int]:
+    if total_window == 0:
+        v = sensor_map.get(center_date.date(), np.nan)
+        return float(v) if np.isfinite(v) else np.nan, int(np.isfinite(v))
+
+    half = total_window // 2
+    vals = []
+    for off in range(-half, half + 1):
+        dt = (center_date + pd.Timedelta(days=off)).date()
+        v = sensor_map.get(dt, np.nan)
+        if np.isfinite(v):
+            vals.append(float(v))
+
+    if total_window == 3:
+        min_valid = 2
+    elif total_window == 5:
+        min_valid = 3
+    elif total_window == 7:
+        min_valid = 4
+    else:
+        min_valid = max(1, half + 1)
+
+    if len(vals) < min_valid:
+        return np.nan, len(vals)
+
+    return float(np.nanmean(vals)), len(vals)
+
+
+def compute_site_validation_metrics(
+    sensor_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    temporal_windows: Iterable[int] = (0,),
+    min_pairs: int = 3,
+) -> dict:
+    if sensor_df.empty or model_df.empty:
+        return {}
+
+    sensor_map = {
+        d.date(): float(v)
+        for d, v in zip(sensor_df["date"], sensor_df["x"])
+        if pd.notna(v)
+    }
+
+    out = {}
+    for tw in temporal_windows:
+        x_vals = []
+        y_vals = []
+        counts_used = []
+
+        for dt, y in zip(model_df["date"], model_df["y"]):
+            x_agg, n_used = _sensor_window_mean(sensor_map, dt, tw)
+            if np.isfinite(x_agg) and np.isfinite(y):
+                x_vals.append(float(x_agg))
+                y_vals.append(float(y))
+                counts_used.append(int(n_used))
+
+        x_arr = np.asarray(x_vals, dtype=float)
+        y_arr = np.asarray(y_vals, dtype=float)
+
+        out[f"overlap_count_tw{tw}"] = int(len(x_arr))
+
+        if len(x_arr) < min_pairs:
+            out[f"p_rho_tw{tw}"] = np.nan
+            out[f"s_rho_tw{tw}"] = np.nan
+            out[f"bias_tw{tw}"] = np.nan
+            out[f"rmse_tw{tw}"] = np.nan
+            out[f"ubrmsd_tw{tw}"] = np.nan
+            continue
+
+        out[f"p_rho_tw{tw}"] = _safe_corr(pd.Series(x_arr), pd.Series(y_arr), method="pearson")
+        out[f"s_rho_tw{tw}"] = _safe_corr(pd.Series(x_arr), pd.Series(y_arr), method="spearman")
+        out[f"bias_tw{tw}"] = _bias(x_arr, y_arr)
+        out[f"rmse_tw{tw}"] = _rmse(x_arr, y_arr)
+        out[f"ubrmsd_tw{tw}"] = _ubrmsd(x_arr, y_arr)
+
+    if 0 in temporal_windows:
+        base = out.get("p_rho_tw0", np.nan)
+        for tw in temporal_windows:
+            if tw == 0:
+                continue
+            out[f"delta_r_{tw}"] = (
+                out.get(f"p_rho_tw{tw}", np.nan) - base
+                if np.isfinite(base) and np.isfinite(out.get(f"p_rho_tw{tw}", np.nan))
+                else np.nan
+            )
+
     return out
 
 
-# -------------------------
-# Plotting (paired: always DISPLAY + SAVE)
-# -------------------------
-def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict, title: str):
-    x = paired_values["sebal_sm"].to_numpy(dtype=float)
-    y = paired_values["wit_sm"].to_numpy(dtype=float)
+def compute_inter_overpass_windows(
+    sensor_daily_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    min_valid_increments: int = 2,
+    epsilon: float = 1e-9,
+    require_complete_path_for_missed: bool = True,
+) -> pd.DataFrame:
+    if model_df is None or len(model_df) < 2:
+        return pd.DataFrame()
 
-    fig, ax = plt.subplots(figsize=(6.5, 6.5))
-    ax.scatter(x, y, s=12, alpha=0.5, edgecolors="none")
+    sensor_daily_df = sensor_daily_df.dropna(subset=["date", "x"]).sort_values("date").reset_index(drop=True)
+    model_df = model_df.dropna(subset=["date", "y"]).sort_values("date").reset_index(drop=True)
 
-    if x.size and y.size:
-        min_v = float(min(x.min(), y.min()))
-        max_v = float(max(x.max(), y.max()))
-        ax.plot([min_v, max_v], [min_v, max_v], "--", color="gray", linewidth=1)
+    sensor_map = {
+        d.date(): float(v)
+        for d, v in zip(sensor_daily_df["date"], sensor_daily_df["x"])
+        if pd.notna(v)
+    }
 
-    ax.set_xlabel("SEBAL-derived Soil Moisture (m³/m³)")
-    ax.set_ylabel("WITSMS Soil Moisture (m³/m³)")
-    ax.set_title(title)
-    ax.grid(True, alpha=0.3)
-    ax.set_aspect("equal", adjustable="box")
+    rows = []
 
-    mean_bias = stats_results["bias"]["mean"]
-    mean_mse = stats_results["mse"]["mean"]
-    mean_p = stats_results["p_rho"]["mean"]
-    mean_s = stats_results["s_rho"]["mean"]
-    mean_ubr = stats_results["ubrmsd"]["mean"]
+    model_dates = list(model_df["date"])
+    model_vals = list(model_df["y"])
 
-    rmse_disp = (mean_mse ** 0.5) if mean_mse is not None else float("nan")
-    textstr = (
-        f"Bias = {mean_bias:.3f} m³/m³\n"
-        f"RMSE = {rmse_disp:.3f} m³/m³\n"
-        f"ubRMSD = {mean_ubr:.3f} m³/m³\n"
-        f"R = {mean_p:.3f}\n"
-        fr"$\rho$ = {mean_s:.3f}"
-        f"\nN = {len(paired_values)}"
-    )
-    ax.text(
-        0.02, 0.98, textstr,
-        transform=ax.transAxes,
-        va="top", ha="left",
-        bbox=dict(facecolor="white", edgecolor="gray", alpha=0.9),
-    )
-
-    fig.tight_layout()
-    return fig
-
-
-def save_fig(fig, out_png: Path):
-    out_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_png, dpi=300, bbox_inches="tight")
-    print(f"[plot] saved -> {out_png}")
-
-
-# -------------------------
-# Step 1: overlaps
-# -------------------------
-def generate_overlaps(
-    *,
-    row_path: str,
-    member: str,
-    wit_sms_path: str,
-    raster_folder_path: str,
-    validation_folder_path: Path,
-    images_folder_path: Path,
-    metadata_file_path: Path,
-    temporal_win: int,
-    rescaling: bool,
-    save_plot: bool,
-):
-    validation_folder_path.mkdir(parents=True, exist_ok=True)
-    images_folder_path.mkdir(parents=True, exist_ok=True)
-
-    soil_moisture_data = SoilMoistureData(wit_sms_path)
-    soil_moisture_data.read_data()
-    metadata = soil_moisture_data.get_metadata()
-
-    raster_data = SebalSoilMoistureData(raster_folder_path, pattern="Root_zone_moisture")
-
-    validation_metadata = []
-    print(f"[overlaps] member={member} row={row_path} tw={temporal_win}")
-
-    for _metadata in metadata:
-        lat, lon = float(_metadata["latitude"]), float(_metadata["longitude"])
-
-        csv_dates, csv_values = soil_moisture_data.get_soil_moisture_by_location(lat, lon)
-        raster_dates, raster_values = raster_data.get_data(lat, lon)
-
-        if raster_dates is None or raster_values is None:
+    for k in range(len(model_dates) - 1):
+        start_dt = model_dates[k]
+        end_dt = model_dates[k + 1]
+        if end_dt <= start_dt:
             continue
 
-        csv_dates, csv_values = remove_nan_entries(csv_dates, csv_values)
-        raster_dates, raster_values = remove_nan_entries(raster_dates, raster_values)
+        y_start = float(model_vals[k])
+        y_end = float(model_vals[k + 1])
+        delta_y = y_end - y_start
 
-        ref_data = sms_calibrations((csv_dates, csv_values))
-        test_data = (raster_dates, raster_values)
+        w = sensor_daily_df[
+            (sensor_daily_df["date"] >= start_dt) &
+            (sensor_daily_df["date"] <= end_dt)
+        ].copy()
 
-        if rescaling:
-            test_data, _ = scaling(test_data, ref_data)
-            csv_dates, csv_values = ref_data
-            raster_dates, raster_values = test_data
+        if w.empty:
+            continue
 
-        # --- temporal matching ---
-        if temporal_win == 0:
-            # keep existing behavior for backward compatibility
-            common_dates, ref_values, test_values, overlap_count = temporal_matching(
-                test_data, ref_data, temporal_win
+        w = w.dropna(subset=["x"]).sort_values("date").reset_index(drop=True)
+
+        incs = []
+        valid_inc_dates = []
+
+        for i in range(1, len(w)):
+            d0 = w.loc[i - 1, "date"].date()
+            d1 = w.loc[i, "date"].date()
+            if (d1 - d0).days == 1:
+                incs.append(float(w.loc[i, "x"] - w.loc[i - 1, "x"]))
+                valid_inc_dates.append((d0, d1))
+
+        m = len(incs)
+        expected_increments = int((end_dt.date() - start_dt.date()).days)
+
+        if m < min_valid_increments:
+            continue
+
+        incs = np.asarray(incs, dtype=float)
+
+        AV = float(np.nansum(np.abs(incs)))
+        QV = float(np.nansum(incs ** 2))
+        AV_norm = AV / m
+        QV_norm = QV / m
+        coverage_ratio = (m / expected_increments) if expected_increments > 0 else np.nan
+
+        x_start = sensor_map.get(start_dt.date(), np.nan)
+        x_end = sensor_map.get(end_dt.date(), np.nan)
+
+        complete_path = False
+        if expected_increments > 0 and not w.empty:
+            complete_path = (
+                pd.Timestamp(w.iloc[0]["date"]).date() == start_dt.date() and
+                pd.Timestamp(w.iloc[-1]["date"]).date() == end_dt.date() and
+                m == expected_increments
             )
+
+        if np.isfinite(x_start) and np.isfinite(x_end):
+            delta_x_end = float(x_end - x_start)
         else:
-            half_window, min_valid = tw_to_window_params(temporal_win)
+            delta_x_end = np.nan
 
+        Missed = np.nan
+        Missed_norm = np.nan
+
+        can_compute_missed = (
+            np.isfinite(delta_x_end) and
             (
-                common_dates,
-                ref_values,      # aggregated sensor values (WIT)
-                test_values,     # matched model values (SEBAL)
-                overlap_count,
-                n_sensor_used,
-                used_sensor_dates,
-            ) = temporal_matching_windowed(
-                model_data=test_data,
-                sensor_data=ref_data,
-                half_window=half_window,
-                min_valid=min_valid
+                (complete_path and require_complete_path_for_missed) or
+                (not require_complete_path_for_missed)
             )
+        )
 
-        _metadata["overlaps"] = overlap_count
-        if overlap_count > 0:
-            validation_metadata.append(_metadata)
+        if can_compute_missed:
+            Missed = float(AV - abs(delta_x_end))
+            if AV <= epsilon and abs(delta_x_end) <= epsilon:
+                Missed_norm = 0.0
+            elif AV > epsilon:
+                Missed_norm = float((AV - abs(delta_x_end)) / (AV + epsilon))
 
-            data_to_save = list(zip(common_dates, ref_values, test_values))
-            headers = ["Timestamp", "wit_sm", "sebal_sm"]
-            fname = f"sebal_{row_path}_{member}_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.xlsx"
-            save_to_excel(data_to_save, str(validation_folder_path / fname), headers)
+        rows.append(
+            {
+                "start_date": start_dt.date(),
+                "end_date": end_dt.date(),
+                "window_length_days": expected_increments,
+                "y_start": y_start,
+                "y_end": y_end,
+                "delta_y": delta_y,
+                "x_start": x_start,
+                "x_end": x_end,
+                "delta_x_end": delta_x_end,
+                "valid_increments": int(m),
+                "expected_increments": int(expected_increments),
+                "coverage_ratio": coverage_ratio,
+                "complete_path": bool(complete_path),
+                "AV": AV,
+                "QV": QV,
+                "AV_norm": AV_norm,
+                "QV_norm": QV_norm,
+                "Missed": Missed,
+                "Missed_norm": Missed_norm,
+            }
+        )
 
-            if save_plot:
-                img_name = f"sebal_{row_path}_{member}_witgpi_{_metadata['gpi']}_lat_{lat}_lon_{lon}.png"
-                save_to_plot(
-                    csv_dates, csv_values,
-                    raster_dates, raster_values,
-                    lat, lon,
-                    str(images_folder_path / img_name),
-                )
-
-    save_metadata(validation_metadata, str(metadata_file_path))
-    print(f"[overlaps] member={member} row={row_path} sensors={len(validation_metadata)}")
+    return pd.DataFrame(rows)
 
 
-# -------------------------
-# Step 2: validations (paired always DISPLAY + SAVE)
-# -------------------------
-def run_validations_and_save_all(
-    *,
-    tag: str,
-    files: list[str],
-    metadata_df: pd.DataFrame,
-    output_xlsx: Path,
-    figs_out_dir: Path,
-    outlier_threshold: float,
-    show_all_plots: bool,
-    save_all_plots: bool,
-    temporal_win: int,
-):
-    metrics_dict, num_of_obs, paired_values = validations_gpi_adv(
-        files=files,
-        threshold=outlier_threshold,
-    )
-    stats_results = compute_statistics(metrics_dict)
-
-    # Write workbook
-    metrics_df = pd.DataFrame(metrics_dict)
-    metrics_df["gpi"] = metrics_df["gpi"].astype(str)
-    merged_df = pd.merge(metadata_df, metrics_df, on="gpi", how="left")
-
-    summary_data = {
-        "Metric": ["bias", "mse", "ubrmsd", "p_rho", "s_rho"],
-        "mean": [
-            stats_results["bias"]["mean"],
-            stats_results["mse"]["mean"],
-            stats_results["ubrmsd"]["mean"],
-            stats_results["p_rho"]["mean"],
-            stats_results["s_rho"]["mean"],
-        ],
-        "median": [
-            stats_results["bias"]["median"],
-            stats_results["mse"]["median"],
-            stats_results["ubrmsd"]["median"],
-            stats_results["p_rho"]["median"],
-            stats_results["s_rho"]["median"],
-        ],
-        "IQR": [
-            stats_results["bias"]["IQR"],
-            stats_results["mse"]["IQR"],
-            stats_results["ubrmsd"]["IQR"],
-            stats_results["p_rho"]["IQR"],
-            stats_results["s_rho"]["IQR"],
-        ],
+def summarize_site_windows(
+    site: SiteMeta,
+    row_path: str,
+    raster_stat: str,
+    windows_df: pd.DataFrame,
+    validation_metrics: dict | None = None,
+) -> dict:
+    base = {
+        "gpi": str(site.gpi),
+        "latitude": float(site.lat),
+        "longitude": float(site.lon),
+        "row_path": row_path,
+        "raster_stat": raster_stat,
+        "number_of_windows": 0,
+        "total_valid_increment_count": 0,
+        "mean_window_length_days": np.nan,
+        "median_window_length_days": np.nan,
+        "median_coverage_ratio": np.nan,
+        "median_AV_norm": np.nan,
+        "median_QV_norm": np.nan,
+        "median_Missed_norm": np.nan,
+        "p75_AV_norm": np.nan,
+        "p75_QV_norm": np.nan,
     }
-    summary_df = pd.DataFrame(summary_data)
-    obs_df = pd.DataFrame({"Metric": ["Observations"], "mean": [num_of_obs], "median": [""], "IQR": [""]})
-    summary_df = pd.concat([obs_df, summary_df], ignore_index=True)
 
-    output_xlsx.parent.mkdir(parents=True, exist_ok=True)
-    with pd.ExcelWriter(output_xlsx, engine="xlsxwriter") as writer:
-        merged_df.to_excel(writer, sheet_name="MetaData", index=False)
-        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+    if windows_df is not None and not windows_df.empty:
+        base.update({
+            "number_of_windows": int(len(windows_df)),
+            "total_valid_increment_count": int(windows_df["valid_increments"].sum()),
+            "mean_window_length_days": float(windows_df["window_length_days"].mean()),
+            "median_window_length_days": float(windows_df["window_length_days"].median()),
+            "median_coverage_ratio": float(windows_df["coverage_ratio"].median()),
+            "median_AV_norm": float(windows_df["AV_norm"].median()),
+            "median_QV_norm": float(windows_df["QV_norm"].median()),
+            "median_Missed_norm": float(windows_df["Missed_norm"].median(skipna=True)),
+            "p75_AV_norm": float(windows_df["AV_norm"].quantile(0.75)),
+            "p75_QV_norm": float(windows_df["QV_norm"].quantile(0.75)),
+        })
 
-    print(f"[validate] {tag} saved -> {output_xlsx}")
+    if validation_metrics:
+        base.update(validation_metrics)
 
-    figs_out_dir.mkdir(parents=True, exist_ok=True)
+    return base
 
-    # Paired scatter: ALWAYS DISPLAY + SAVE
-    paired_png = figs_out_dir / f"paired_scatter_tw_{temporal_win}.png"
-    fig = make_paired_scatter_figure(paired_values, stats_results, title=tag)
-    save_fig(fig, paired_png)
-    plt.show()          # display
-    plt.close(fig)      # close after display to avoid memory buildup
 
-    # Extra plots:
-    # - show_all_plots -> display
-    # - save_all_plots -> save to disk (even if not displaying)
-    if save_all_plots:
-        plot_box_and_whiskers(metrics_dict, filename=str(figs_out_dir / f"boxplot_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
-        plot_metric_with_ci(metrics_dict, metric="ubrmsd",
-                            filename=str(figs_out_dir / f"ci_ubrmsd_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
-        plot_metric_with_ci(metrics_dict, metric="bias",
-                            filename=str(figs_out_dir / f"ci_bias_{tag}_tw_{temporal_win}.png"), save=True, show=show_all_plots)
-    elif show_all_plots:
-        # show only (no saving)
-        plot_box_and_whiskers(metrics_dict, save=False, show=True)
-        plot_metric_with_ci(metrics_dict, metric="ubrmsd", save=False, show=True)
-        plot_metric_with_ci(metrics_dict, metric="bias", save=False, show=True)
+def run_case(
+    wit_sms_path: str,
+    raster_base: str,
+    row_path: str,
+    raster_stat: str,
+    min_valid_increments: int,
+    epsilon: float,
+    require_complete_path_for_missed: bool,
+    apply_sms_calibration: bool,
+    apply_rescaling: bool,
+    temporal_windows_for_corr: Iterable[int],
+    min_pairs_corr: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    soil = SoilMoistureData(wit_sms_path)
+    soil.read_data()
+    metadata = soil.get_metadata()
 
-    return metrics_dict, num_of_obs, paired_values, stats_results
+    raster_folder = Path(raster_base) / raster_stat / row_path
+    raster = SebalSoilMoistureData(str(raster_folder), pattern="Root_zone_moisture")
+
+    window_all = []
+    site_all = []
+
+    for meta in metadata:
+        try:
+            lat = float(meta["latitude"])
+            lon = float(meta["longitude"])
+            gpi = str(meta["gpi"])
+        except Exception:
+            continue
+
+        site = SiteMeta(gpi=gpi, lat=lat, lon=lon)
+
+        sensor_df = load_site_sensor_daily(
+            soil,
+            lat,
+            lon,
+            apply_sms_calibration=apply_sms_calibration,
+        )
+        if sensor_df.empty:
+            continue
+
+        model_df = load_site_model_full(raster, lat, lon)
+        if model_df.empty:
+            continue
+
+        model_df = maybe_rescale_model_to_sensor(
+            sensor_df,
+            model_df,
+            apply_rescaling=apply_rescaling,
+        )
+
+        validation_metrics = compute_site_validation_metrics(
+            sensor_df=sensor_df,
+            model_df=model_df,
+            temporal_windows=temporal_windows_for_corr,
+            min_pairs=min_pairs_corr,
+        )
+
+        windows_df = compute_inter_overpass_windows(
+            sensor_daily_df=sensor_df,
+            model_df=model_df,
+            min_valid_increments=min_valid_increments,
+            epsilon=epsilon,
+            require_complete_path_for_missed=require_complete_path_for_missed,
+        )
+
+        if not windows_df.empty:
+            windows_df.insert(0, "gpi", site.gpi)
+            windows_df.insert(1, "latitude", site.lat)
+            windows_df.insert(2, "longitude", site.lon)
+            windows_df.insert(3, "row_path", row_path)
+            windows_df.insert(4, "raster_stat", raster_stat)
+            window_all.append(windows_df)
+
+        site_all.append(
+            summarize_site_windows(
+                site=site,
+                row_path=row_path,
+                raster_stat=raster_stat,
+                windows_df=windows_df,
+                validation_metrics=validation_metrics,
+            )
+        )
+
+    window_df = pd.concat(window_all, ignore_index=True) if window_all else pd.DataFrame()
+    site_df = pd.DataFrame(site_all) if site_all else pd.DataFrame()
+
+    return window_df, site_df
