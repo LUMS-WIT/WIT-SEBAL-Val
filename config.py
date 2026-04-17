@@ -11,7 +11,7 @@ UQ_MEMBERS = ["mean", "lower", "upper"]
 VALIDATION_MEMBER = "mean"
 
 # temporal matching
-TEMPORAL_WIN = 7    # days for temporal window 3, 5,7
+TEMPORAL_WIN = 0    # days for temporal window 3, 5,7
 RESCALING = True
 OUTLIER_THRESHOLD = -0.47
 
@@ -48,6 +48,12 @@ SHOW_ALL_PLOTS_UQ = False
 # =========================
 VOLATILITY_OUTPUT_BASE = Path(r".\volatility_Output")
 
+# ---- Volatility / inter-overpass diagnostics ----
+RUN_INTER_OVERPASS_DIAGNOSTICS = True
+
+INTER_OVERPASS_RASTER_STATS = ["mean"]   # keep simple for now
+
+VALIDATIONS_OUTPUT_BASE = Path(r".\validations_Output")
 MIN_VALID_INCREMENTS = 2
 EPSILON_MISSED_VARIATION = 1e-9
 
@@ -79,45 +85,45 @@ VOLATILITY_SAVE_SCATTERS = True
 # STEP1 Variables 
 # ------------------------------- #
 
-# ROW_PATH = '150039'
-# SAVE_PLOT = False
-# RESCALING = True
-# # TEMPORAL_WIN = 0   # days for temporal matching
+ROW_PATH = '150039'
+SAVE_PLOT = False
+RESCALING = True
+# TEMPORAL_WIN = 0   # days for temporal matching
 
-# # input datasets
-# WIT_SMS_PATH = 'D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily'
-# RASTER_FOLDER_PATH = fr'D:/SEBAL/datasets/validation/LBDC_validations/rzsm/mean/{ROW_PATH}/'
+# input datasets
+WIT_SMS_PATH = 'D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily'
+RASTER_FOLDER_PATH = fr'D:/SEBAL/datasets/validation/LBDC_validations/rzsm/mean/{ROW_PATH}/'
 
-# # output
-# VALIDATION_FOLDER = fr'.\validations_UQ\validation_points\mean\{ROW_PATH}_{TEMPORAL_WIN}'
-# IMAGES_FOLDER = fr'.\validations_UQ\figs\{ROW_PATH}'
-# METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\mean\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
+# output
+VALIDATION_FOLDER = fr'.\validations_UQ\validation_points\mean\{ROW_PATH}_{TEMPORAL_WIN}'
+IMAGES_FOLDER = fr'.\validations_UQ\figs\{ROW_PATH}'
+METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\mean\metadata_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
 
-# # ------------------------------- #
-# # STEP 1b Combining validations for UQ
-# # ------------------------------- #
-# # BASE_DIR = Path(fr".\UQ\validation_points")
+# ------------------------------- #
+# STEP 1b Combining validations for UQ
+# ------------------------------- #
+# BASE_DIR = Path(fr".\UQ\validation_points")
 
-# # MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
-# # LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
-# # UPPER_DIR  = BASE_DIR / "upper" / f"{ROW_PATH}_{TEMPORAL_WIN}"
-# # COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# MEAN_DIR   = BASE_DIR / "mean"  / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# LOWER_DIR  = BASE_DIR / "lower" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# UPPER_DIR  = BASE_DIR / "upper" / f"{ROW_PATH}_{TEMPORAL_WIN}"
+# COMBINE_DIR = BASE_DIR / "combine" / f"{ROW_PATH}_{TEMPORAL_WIN}"
 
-# # ------------------------------- #
-# # STEP 2 variables
-# # ------------------------------- #
+# ------------------------------- #
+# STEP 2 variables
+# ------------------------------- #
 
-# COMBINE_VALIDATIONS = True
-# # MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
-# MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
-# OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
+COMBINE_VALIDATIONS = True
+# MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
+MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
+OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
 
 
-# if COMBINE_VALIDATIONS:
-#     INPUT_FOLDER= MASTER_FOLDER
-#     OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.xlsx'
-#     PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.png'
-# else:
-#     INPUT_FOLDER= VALIDATION_FOLDER
-#     OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
-#     PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.png'
+if COMBINE_VALIDATIONS:
+    INPUT_FOLDER= MASTER_FOLDER
+    OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.xlsx'
+    PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_tw_{TEMPORAL_WIN}.png'
+else:
+    INPUT_FOLDER= VALIDATION_FOLDER
+    OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.xlsx'
+    PLOT_OUTPUT_FILE = fr'.\validations_UQ\results\validations_{ROW_PATH}_tw_{TEMPORAL_WIN}.png'
