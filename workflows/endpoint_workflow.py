@@ -42,7 +42,8 @@ def _scatter_with_fit(df: pd.DataFrame, x: str, y: str, out_png: Path, xlabel: s
     ax.set_title(title)
     ax.grid(True, alpha=0.25)
 
-    txt = f"Spearman = {sp.statistic:.2f}\np = {sp.pvalue:.3g}"
+    # txt = f"Spearman = {sp.statistic:.2f}\np = {sp.pvalue:.3g}"
+    txt = fr"$\rho$ = {sp.statistic:.2f}"
     ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", ha="left",
             bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="0.7"))
 

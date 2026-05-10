@@ -50,6 +50,41 @@ def _scatter(
     plt.close(fig)
 
 
+def _apply_ab_filter(site_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Replicates the Validation A/B inclusion logic:
+
+    Let thr = OUTLIER_THRESHOLD.
+
+    A) Keep sites where:
+       p_rho_tw0 >= thr AND s_rho_tw0 >= thr
+
+    B) Also keep sites where correlation is low, BUT there is enough support:
+       (p_rho_tw0 < thr OR s_rho_tw0 < thr) AND overlap_count_tw0 > 10
+
+    Notes:
+    - Uses overlap_count_tw0 (computed in volatility_module's compute_site_validation_metrics).
+    - If required columns are missing, returns the input unchanged (fails safe).
+    """
+    required = {"p_rho_tw0", "s_rho_tw0", "overlap_count_tw0"}
+    if site_df is None or site_df.empty:
+        return site_df
+    if not required.issubset(set(site_df.columns)):
+        # fail-safe: don't filter if we don't have what we need
+        return site_df
+
+    thr = float(cfg.OUTLIER_THRESHOLD)
+
+    p = site_df["p_rho_tw0"]
+    s = site_df["s_rho_tw0"]
+    n = site_df["overlap_count_tw0"]
+
+    A = np.isfinite(p) & np.isfinite(s) & (p >= thr) & (s >= thr)
+    B = np.isfinite(p) & np.isfinite(s) & ((p < thr) | (s < thr)) & np.isfinite(n) & (n > 10)
+
+    return site_df[A | B].copy()
+
+
 def _save_case_outputs(
     *,
     out_dir: Path,
@@ -69,10 +104,20 @@ def _save_case_outputs(
         site_df,
     )
 
-    if cfg.VOLATILITY_SAVE_SCATTERS and not site_df.empty:
-        if "p_rho_tw0" in site_df.columns:
+    # Apply exact validation A/B rule for plotting + diagnostic stats
+    site_df_plot = _apply_ab_filter(site_df)
+
+    # Optional: save filtered table for transparency/debugging
+    _save_xlsx(
+        out_dir / f"site_level_metrics_filtered_AB_{raster_stat}_{row_path_label}.xlsx",
+        "SiteMetricsFilteredAB",
+        site_df_plot,
+    )
+
+    if cfg.VOLATILITY_SAVE_SCATTERS and site_df_plot is not None and not site_df_plot.empty:
+        if "p_rho_tw0" in site_df_plot.columns:
             _scatter(
-                site_df,
+                site_df_plot,
                 x="median_AV_norm",
                 y="p_rho_tw0",
                 out_png=out_dir / f"scatter_AVnorm_vs_prho_{raster_stat}_{row_path_label}.png",
@@ -81,7 +126,7 @@ def _save_case_outputs(
                 title=f"{row_path_label} {raster_stat}: AV_norm vs Pearson r",
             )
             _scatter(
-                site_df,
+                site_df_plot,
                 x="median_Missed_norm",
                 y="p_rho_tw0",
                 out_png=out_dir / f"scatter_Missednorm_vs_prho_{raster_stat}_{row_path_label}.png",
@@ -90,7 +135,7 @@ def _save_case_outputs(
                 title=f"{row_path_label} {raster_stat}: Missed_norm vs Pearson r",
             )
             _scatter(
-                site_df,
+                site_df_plot,
                 x="median_QV_norm",
                 y="p_rho_tw0",
                 out_png=out_dir / f"scatter_QVnorm_vs_prho_{raster_stat}_{row_path_label}.png",
@@ -114,10 +159,17 @@ def _print_summary(label: str, raster_stat: str, window_df: pd.DataFrame, site_d
     print(f"valid_sites_with_windows={valid_sites}")
     print(f"total_windows={total_windows}")
     print(f"median(site median_AV_norm)={med_av:.6f}" if np.isfinite(med_av) else "median(site median_AV_norm)=NaN")
-    print(f"median(site median_Missed_norm)={med_missed:.6f}" if np.isfinite(med_missed) else "median(site median_Missed_norm)=NaN")
+    print(
+        f"median(site median_Missed_norm)={med_missed:.6f}"
+        if np.isfinite(med_missed)
+        else "median(site median_Missed_norm)=NaN"
+    )
 
-    if site_df is not None and not site_df.empty and "p_rho_tw0" in site_df.columns:
-        d = site_df[["median_Missed_norm", "p_rho_tw0"]].replace([np.inf, -np.inf], np.nan).dropna()
+    # Spearman should be computed on the SAME A/B-filtered set used for plotting
+    site_df_plot = _apply_ab_filter(site_df)
+
+    if site_df_plot is not None and not site_df_plot.empty and "p_rho_tw0" in site_df_plot.columns:
+        d = site_df_plot[["median_Missed_norm", "p_rho_tw0"]].replace([np.inf, -np.inf], np.nan).dropna()
         if len(d) >= 3:
             sp = d["median_Missed_norm"].corr(d["p_rho_tw0"], method="spearman")
             print(f"Spearman(median_Missed_norm, p_rho_tw0)={sp:.4f}")

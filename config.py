@@ -65,7 +65,7 @@ REQUIRE_COMPLETE_PATH_FOR_MISSED = True
 # Whether to apply the same sensor calibration and model rescaling
 # logic as the validation pipeline before diagnostics.
 VOLATILITY_APPLY_SMS_CALIBRATION = True
-VOLATILITY_APPLY_RESCALING = True
+VOLATILITY_APPLY_RESCALING = False
 
 # Site-level correlation diagnostics computed directly from raw inputs
 # using centered sensor windows around each model date.
