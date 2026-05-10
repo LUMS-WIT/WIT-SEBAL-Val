@@ -1,0 +1,413 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+
+import numpy as np
+import pandas as pd
+
+from utils import SoilMoistureData, SebalSoilMoistureData, remove_nan_entries
+from sms_calibration import sms_calibrations
+from scaling import scaling
+
+
+@dataclass(frozen=True)
+class SiteMeta:
+    gpi: str
+    lat: float
+    lon: float
+
+
+def _to_df(dates, values, value_col: str) -> pd.DataFrame:
+    d = pd.to_datetime(pd.Series(list(dates)), errors="coerce").dt.normalize()
+    v = pd.to_numeric(pd.Series(list(values)), errors="coerce")
+    df = pd.DataFrame({"date": d, value_col: v})
+    df = df.dropna(subset=["date", value_col])
+    df = df.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
+    return df
+
+
+def _safe_corr(x: pd.Series, y: pd.Series, method: str = "pearson") -> float:
+    d = pd.DataFrame({"x": x, "y": y}).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(d) < 3:
+        return np.nan
+    return float(d["x"].corr(d["y"], method=method))
+
+
+def _rmse(x: np.ndarray, y: np.ndarray) -> float:
+    return float(np.sqrt(np.nanmean((y - x) ** 2))) if len(x) else np.nan
+
+
+def _bias(x: np.ndarray, y: np.ndarray) -> float:
+    return float(np.nanmean(y - x)) if len(x) else np.nan
+
+
+def _ubrmsd(x: np.ndarray, y: np.ndarray) -> float:
+    if len(x) == 0:
+        return np.nan
+    xd = x - np.nanmean(x)
+    yd = y - np.nanmean(y)
+    return float(np.sqrt(np.nanmean((yd - xd) ** 2)))
+
+
+def load_site_sensor_daily(
+    soil: SoilMoistureData,
+    lat: float,
+    lon: float,
+    apply_sms_calibration: bool = True,
+) -> pd.DataFrame:
+    dates, values = soil.get_soil_moisture_by_location(lat, lon)
+    if dates is None or values is None:
+        return pd.DataFrame(columns=["date", "x"])
+
+    dates, values = remove_nan_entries(dates, values)
+    data = (dates, values)
+
+    if apply_sms_calibration:
+        data = sms_calibrations(data)
+
+    return _to_df(data[0], data[1], "x")
+
+
+def load_site_model_full(
+    raster_data: SebalSoilMoistureData,
+    lat: float,
+    lon: float,
+) -> pd.DataFrame:
+    dates, values = raster_data.get_data(lat, lon)
+    if dates is None or values is None:
+        return pd.DataFrame(columns=["date", "y"])
+
+    dates, values = remove_nan_entries(dates, values)
+    return _to_df(dates, values, "y")
+
+
+def maybe_rescale_model_to_sensor(
+    sensor_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    apply_rescaling: bool = True,
+) -> tuple[pd.DataFrame, bool]:
+    if not apply_rescaling or sensor_df.empty or model_df.empty:
+        return model_df, False
+
+    sensor_data = (list(sensor_df["date"]), list(sensor_df["x"]))
+    model_data = (list(model_df["date"]), list(model_df["y"]))
+
+    # Avoid unstable scaling
+    y = np.asarray(model_df["y"], dtype=float)
+    if len(y) < 3 or np.nanstd(y) <= 1e-12:
+        return model_df, False
+
+    try:
+        scaled_model_data, _ = scaling(model_data, sensor_data)
+        scaled_df = _to_df(scaled_model_data[0], scaled_model_data[1], "y")
+        return scaled_df, True
+    except Exception:
+        return model_df, False
+
+
+def _sensor_window_mean(sensor_map: dict, center_date: pd.Timestamp, total_window: int) -> tuple[float, int]:
+    if total_window == 0:
+        v = sensor_map.get(center_date.date(), np.nan)
+        return (float(v), 1) if np.isfinite(v) else (np.nan, 0)
+
+    half = total_window // 2
+    vals = []
+
+    for off in range(-half, half + 1):
+        dt = (center_date + pd.Timedelta(days=off)).date()
+        v = sensor_map.get(dt, np.nan)
+        if np.isfinite(v):
+            vals.append(float(v))
+
+    if total_window == 3:
+        min_valid = 2
+    elif total_window == 5:
+        min_valid = 3
+    elif total_window == 7:
+        min_valid = 4
+    else:
+        min_valid = max(1, half + 1)
+
+    if len(vals) < min_valid:
+        return np.nan, len(vals)
+
+    return float(np.nanmean(vals)), len(vals)
+
+
+def compute_site_validation_metrics(
+    sensor_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    temporal_windows: Iterable[int] = (0,),
+    min_pairs: int = 3,
+) -> dict:
+    if sensor_df.empty or model_df.empty:
+        return {}
+
+    sensor_map = {
+        d.date(): float(v)
+        for d, v in zip(sensor_df["date"], sensor_df["x"])
+        if pd.notna(v)
+    }
+
+    out = {}
+    for tw in temporal_windows:
+        x_vals = []
+        y_vals = []
+
+        for dt, y in zip(model_df["date"], model_df["y"]):
+            x_agg, _ = _sensor_window_mean(sensor_map, dt, tw)
+            if np.isfinite(x_agg) and np.isfinite(y):
+                x_vals.append(float(x_agg))
+                y_vals.append(float(y))
+
+        x_arr = np.asarray(x_vals, dtype=float)
+        y_arr = np.asarray(y_vals, dtype=float)
+
+        out[f"overlap_count_tw{tw}"] = int(len(x_arr))
+
+        if len(x_arr) < min_pairs:
+            out[f"p_rho_tw{tw}"] = np.nan
+            out[f"s_rho_tw{tw}"] = np.nan
+            out[f"bias_tw{tw}"] = np.nan
+            out[f"rmse_tw{tw}"] = np.nan
+            out[f"ubrmsd_tw{tw}"] = np.nan
+            continue
+
+        out[f"p_rho_tw{tw}"] = _safe_corr(pd.Series(x_arr), pd.Series(y_arr), method="pearson")
+        out[f"s_rho_tw{tw}"] = _safe_corr(pd.Series(x_arr), pd.Series(y_arr), method="spearman")
+        out[f"bias_tw{tw}"] = _bias(x_arr, y_arr)
+        out[f"rmse_tw{tw}"] = _rmse(x_arr, y_arr)
+        out[f"ubrmsd_tw{tw}"] = _ubrmsd(x_arr, y_arr)
+
+    if 0 in temporal_windows:
+        base = out.get("p_rho_tw0", np.nan)
+        for tw in temporal_windows:
+            if tw == 0:
+                continue
+            other = out.get(f"p_rho_tw{tw}", np.nan)
+            out[f"delta_r_{tw}"] = other - base if np.isfinite(base) and np.isfinite(other) else np.nan
+
+    return out
+
+
+def compute_window_endpoint_diagnostics(
+    sensor_daily_df: pd.DataFrame,
+    model_df: pd.DataFrame,
+    min_valid_increments: int = 2,
+    eps: float = 1e-9,
+) -> pd.DataFrame:
+    if model_df is None or len(model_df) < 2:
+        return pd.DataFrame()
+
+    sensor_daily_df = sensor_daily_df.dropna(subset=["date", "x"]).sort_values("date").reset_index(drop=True)
+    model_df = model_df.dropna(subset=["date", "y"]).sort_values("date").reset_index(drop=True)
+
+    sensor_map = {
+        d.date(): float(v)
+        for d, v in zip(sensor_daily_df["date"], sensor_daily_df["x"])
+        if pd.notna(v)
+    }
+
+    rows = []
+    model_dates = list(model_df["date"])
+    model_vals = list(model_df["y"])
+
+    for k in range(len(model_dates) - 1):
+        start_dt = model_dates[k]
+        end_dt = model_dates[k + 1]
+        if end_dt <= start_dt:
+            continue
+
+        y_start = float(model_vals[k])
+        y_end = float(model_vals[k + 1])
+        delta_y = y_end - y_start
+
+        w = sensor_daily_df[
+            (sensor_daily_df["date"] >= start_dt) &
+            (sensor_daily_df["date"] <= end_dt)
+        ].copy()
+
+        if w.empty:
+            continue
+
+        w = w.dropna(subset=["x"]).sort_values("date").reset_index(drop=True)
+
+        incs = []
+        for i in range(1, len(w)):
+            d0 = w.loc[i - 1, "date"].date()
+            d1 = w.loc[i, "date"].date()
+            if (d1 - d0).days == 1:
+                incs.append(float(w.loc[i, "x"] - w.loc[i - 1, "x"]))
+
+        m = len(incs)
+        expected_increments = int((end_dt.date() - start_dt.date()).days)
+        if m < min_valid_increments:
+            continue
+
+        incs = np.asarray(incs, dtype=float)
+        AV = float(np.nansum(np.abs(incs)))
+        QV = float(np.nansum(incs ** 2))
+        AV_norm = AV / m
+        QV_norm = QV / m
+
+        x_start = sensor_map.get(start_dt.date(), np.nan)
+        x_end = sensor_map.get(end_dt.date(), np.nan)
+        delta_x_end = float(x_end - x_start) if np.isfinite(x_start) and np.isfinite(x_end) else np.nan
+
+        endpoint_mismatch_abs = np.nan
+        sign_flip = np.nan
+
+        if np.isfinite(delta_x_end):
+            endpoint_mismatch_abs = float(abs(delta_y - delta_x_end))
+            sign_flip = int(delta_y * delta_x_end < 0)
+
+        rows.append({
+            "start_date": start_dt.date(),
+            "end_date": end_dt.date(),
+            "window_length_days": expected_increments,
+            "valid_increments": int(m),
+            "y_start": y_start,
+            "y_end": y_end,
+            "delta_y": delta_y,
+            "x_start": x_start,
+            "x_end": x_end,
+            "delta_x_end": delta_x_end,
+            "abs_delta_y": abs(delta_y),
+            "abs_delta_x_end": abs(delta_x_end) if np.isfinite(delta_x_end) else np.nan,
+            "endpoint_mismatch_abs": endpoint_mismatch_abs,
+            "sign_flip": sign_flip,
+            "AV_norm": AV_norm,
+            "QV_norm": QV_norm,
+        })
+
+    return pd.DataFrame(rows)
+
+
+def summarize_site(
+    site: SiteMeta,
+    row_path: str,
+    raster_stat: str,
+    windows_df: pd.DataFrame,
+    validation_metrics: dict,
+    scaling_applied: bool,
+) -> dict:
+    out = {
+        "gpi": str(site.gpi),
+        "latitude": float(site.lat),
+        "longitude": float(site.lon),
+        "row_path": row_path,
+        "raster_stat": raster_stat,
+        "scaling_applied": int(bool(scaling_applied)),
+        "number_of_windows": 0,
+        "p90_endpoint_mismatch": np.nan,
+        "median_endpoint_mismatch": np.nan,
+        "signflip_fraction": np.nan,
+        "median_QV_norm": np.nan,
+        "mean_abs_delta_y": np.nan,
+        "mean_abs_delta_x_end": np.nan,
+    }
+
+    if windows_df is not None and not windows_df.empty:
+        out.update({
+            "number_of_windows": int(len(windows_df)),
+            "p90_endpoint_mismatch": float(np.nanquantile(windows_df["endpoint_mismatch_abs"], 0.90)),
+            "median_endpoint_mismatch": float(np.nanmedian(windows_df["endpoint_mismatch_abs"])),
+            "signflip_fraction": float(np.nanmean(windows_df["sign_flip"])),
+            "median_QV_norm": float(np.nanmedian(windows_df["QV_norm"])),
+            "mean_abs_delta_y": float(np.nanmean(windows_df["abs_delta_y"])),
+            "mean_abs_delta_x_end": float(np.nanmean(windows_df["abs_delta_x_end"])),
+        })
+
+    out.update(validation_metrics)
+    return out
+
+
+def make_case_diagnostics(
+    wit_sms_path: str,
+    raster_base: str,
+    row_path: str,
+    raster_stat: str,
+    min_valid_increments: int,
+    apply_sms_calibration: bool,
+    apply_rescaling: bool,
+    temporal_windows_for_corr: Iterable[int],
+    min_pairs_corr: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    soil = SoilMoistureData(wit_sms_path)
+    soil.read_data()
+    metadata = soil.get_metadata()
+
+    raster_folder = Path(raster_base) / raster_stat / row_path
+    raster = SebalSoilMoistureData(str(raster_folder), pattern="Root_zone_moisture")
+
+    all_windows = []
+    all_sites = []
+
+    for meta in metadata:
+        try:
+            lat = float(meta["latitude"])
+            lon = float(meta["longitude"])
+            gpi = str(meta["gpi"])
+        except Exception:
+            continue
+
+        site = SiteMeta(gpi=gpi, lat=lat, lon=lon)
+
+        sensor_df = load_site_sensor_daily(
+            soil,
+            lat,
+            lon,
+            apply_sms_calibration=apply_sms_calibration,
+        )
+        if sensor_df.empty:
+            continue
+
+        model_df = load_site_model_full(raster, lat, lon)
+        if model_df.empty:
+            continue
+
+        model_df, scaling_applied = maybe_rescale_model_to_sensor(
+            sensor_df,
+            model_df,
+            apply_rescaling=apply_rescaling,
+        )
+
+        validation_metrics = compute_site_validation_metrics(
+            sensor_df=sensor_df,
+            model_df=model_df,
+            temporal_windows=temporal_windows_for_corr,
+            min_pairs=min_pairs_corr,
+        )
+
+        windows_df = compute_window_endpoint_diagnostics(
+            sensor_daily_df=sensor_df,
+            model_df=model_df,
+            min_valid_increments=min_valid_increments,
+            eps=1e-9,
+        )
+
+        if not windows_df.empty:
+            windows_df.insert(0, "gpi", site.gpi)
+            windows_df.insert(1, "latitude", site.lat)
+            windows_df.insert(2, "longitude", site.lon)
+            windows_df.insert(3, "row_path", row_path)
+            windows_df.insert(4, "raster_stat", raster_stat)
+            all_windows.append(windows_df)
+
+        all_sites.append(
+            summarize_site(
+                site=site,
+                row_path=row_path,
+                raster_stat=raster_stat,
+                windows_df=windows_df,
+                validation_metrics=validation_metrics,
+                scaling_applied=scaling_applied,
+            )
+        )
+
+    window_df = pd.concat(all_windows, ignore_index=True) if all_windows else pd.DataFrame()
+    site_df = pd.DataFrame(all_sites) if all_sites else pd.DataFrame()
+
+    return window_df, site_df
