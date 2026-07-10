@@ -682,10 +682,10 @@ def plot_metric_with_ci(metrics_dict, metric, filename=None, save=False, show=Fa
     # Set title and labels
     if metric == 'bias':
         ax.set_ylabel('Bias (difference of means) in m³/m³', fontsize=12)
-        ax.set_title(f'Plot for Bias with confidence intervals', fontsize=15)
+        # ax.set_title(f'Plot for Bias with confidence intervals', fontsize=15)
     else: 
         ax.set_ylabel('Unbiased root-mean-square deviation in m³/m³', fontsize=12)
-        ax.set_title(f'Plot for ubRMSD with confidence intervals', fontsize=15)
+        # ax.set_title(f'Plot for ubRMSD with confidence intervals', fontsize=15)
 
     ax.set_xticks([1, 2, 3])
     ax.set_xticklabels([f'{metric}_cl', f'{metric}', f'{metric}_cu'], fontsize=12)
@@ -776,31 +776,31 @@ def validations_gpi_adv(folder_path=None, files=None, threshold=-0.47, alpha=0.0
         wit_sm = np.asarray(wit_sm, dtype=float)
         sebal_sm = np.asarray(sebal_sm, dtype=float)
         valid_mask = np.isfinite(wit_sm) & np.isfinite(sebal_sm)
-        wit_sm_f = wit_sm[valid_mask]
-        sebal_sm_f = sebal_sm[valid_mask]
+        y = wit_sm[valid_mask]
+        x = sebal_sm[valid_mask]
 
         gpi_match = re.search(pattern, file)
         gpi = gpi_match.group(1) if gpi_match else "unknown"
 
         # Need at least 2 points for correlations
-        if len(wit_sm_f) > 1:
-            bias = metrics.bias(sebal_sm_f, wit_sm_f)
-            mse, mse_corr, mse_bias, mse_var = metrics.mse(sebal_sm_f, wit_sm_f)
-            ubrmsd = metrics.ubrmsd(sebal_sm_f, wit_sm_f)
-            p_rho = metrics.pearson_r(sebal_sm_f, wit_sm_f)
-            s_rho = metrics.spearman_r(sebal_sm_f, wit_sm_f)
+        if len(y) > 1:
+            bias = metrics.bias(x, y)
+            mse, mse_corr, mse_bias, mse_var = metrics.mse(x, y)
+            ubrmsd = metrics.ubrmsd(x, y)
+            p_rho = metrics.pearson_r(x, y)
+            s_rho = metrics.spearman_r(x, y)
 
             # Confidence intervals
-            ubrmsd_cl, ubrmsd_cu = metrics.ubrmsd_ci(sebal_sm_f, wit_sm_f, ubrmsd, alpha)
-            bias_cl, bias_cu = metrics.bias_ci(sebal_sm_f, wit_sm_f, ubrmsd, alpha)
+            ubrmsd_cl, ubrmsd_cu = metrics.ubrmsd_ci(x, y, ubrmsd, alpha)
+            bias_cl, bias_cu = metrics.bias_ci(x, y, ubrmsd, alpha)
 
             # A: p_rho >= threshold and s_rho >= threshold
-            # B: (p_rho < threshold or s_rho < threshold) and len(wit_sm_f) > 10
+            # B: (p_rho < threshold or s_rho < threshold) and len(y) > 10
             if (p_rho >= threshold and s_rho >= threshold) or \
-               ((p_rho < threshold or s_rho < threshold) and len(wit_sm_f) > 10):
+               ((p_rho < threshold or s_rho < threshold) and len(y) > 10):
 
                 # Count observations and append metrics
-                observations += len(wit_sm_f)
+                observations += len(y)
                 metrics_dict['gpi'].append(gpi)
                 metrics_dict['bias_cl'].append(bias_cl)
                 metrics_dict['bias'].append(bias)
@@ -815,14 +815,14 @@ def validations_gpi_adv(folder_path=None, files=None, threshold=-0.47, alpha=0.0
                 # Store the paired values used for these metrics
                 paired_records.extend(
                     {'gpi': gpi, 'sebal_sm': s, 'wit_sm': w}
-                    for s, w in zip(sebal_sm_f, wit_sm_f)
+                    for s, w in zip(x, y)
                 )
 
     paired_values = pd.DataFrame(paired_records, columns=['gpi', 'sebal_sm', 'wit_sm'])
     return metrics_dict, observations, paired_values
 
 def plot_paired(paired_values, stats_results):
-    
+    # LEGACY CODE
     # Assumes you already have:
     # - paired_values: DataFrame with columns ['gpi', 'sebal_sm', 'wit_sm'] after filters
     # - stats_results: dict with mean values e.g. stats_results['bias']['mean'], ['mse']['mean'], ['p_rho']['mean']
@@ -860,6 +860,7 @@ def plot_paired(paired_values, stats_results):
     mean_p_rho = stats_results['p_rho']['mean']
     mean_s_rho = stats_results['s_rho']['mean']
     mean_ubrmsd = stats_results['ubrmsd']['mean']
+
 
     # Derive display metrics from the precomputed means
     r2_disp = mean_p_rho**2 if mean_p_rho is not None else np.nan
@@ -1097,6 +1098,12 @@ def sebal_uncertainty_analysis(folder_path):
         wit_sm  = wit_sm[valid]
 
         # ---- Core uncertainty calculation ----
+        
+        # theta_stack = np.vstack([sebal_l, sebal_m, sebal_u])
+        # theta_lower = np.nanmin(theta_stack, axis=0)
+        # theta_upper = np.nanmax(theta_stack, axis=0)
+        # sigma = 0.5 * (theta_upper - theta_lower)
+
         sigma = 0.5 * (sebal_u - sebal_l)
         rel_sigma = sigma / sebal_m
 

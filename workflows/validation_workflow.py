@@ -20,7 +20,6 @@ def main():
     row_a, row_b = cfg.ROW_PATHS
     tw = cfg.TEMPORAL_WIN
 
-    # Order you requested:
     # - overlaps row1 -> validate row1
     # - overlaps row2 -> validate row2
     # - validate combined

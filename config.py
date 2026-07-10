@@ -17,7 +17,7 @@ OUTLIER_THRESHOLD = -0.47
 
 # plotting
 SAVE_ALL_PLOTS = False          # save per-site time-series plots during overlaps
-SHOW_ALL_PLOTS = False     # show box/CI plots for non-final runs
+SHOW_ALL_PLOTS = True     # show box/CI plots for non-final runs
 
 # =========================
 # Base paths only
@@ -114,8 +114,8 @@ METADATA_FILE_PATH = fr'.\validations_UQ\validation_points\mean\metadata_{ROW_PA
 # ------------------------------- #
 
 COMBINE_VALIDATIONS = True
-# MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
-MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
+MASTER_FOLDER = fr'.\validations_UQ\validation_points\combine'
+# MASTER_FOLDER = fr'.\validations_UQ\validation_points\mean'
 OUTLIER_THRESHOLD = -0.47  # threshold for pearson and spearman correlation
 
 

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-FOLDER_PATH = Path(r".\validations_UQ\results")
+FOLDER_PATH = Path(r"validations_Output\results")
 
 # -----------------------------
 # 1. File paths
@@ -110,7 +110,7 @@ ax.set_ylabel("Correlation")
 ax.set_xticks(x)
 ax.set_ylim(0.45, 1.02)
 ax.legend(frameon=False, loc="lower right")
-ax.set_title("(a) Correlation sensitivity to temporal window")
+ax.set_title("(a) Correlation sensitivity to temporal aggregation window")
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 
@@ -120,11 +120,11 @@ ax.spines["right"].set_visible(False)
 # -----------------------------
 ax = axes[1]
 
-ax.plot(
-    x, summary["abs_bias_mean"],
-    marker="^", markersize=5, linewidth=1.4,
-    color="black", label="|Bias|"
-)
+# ax.plot(
+#     x, summary["abs_bias_mean"],
+#     marker="^", markersize=5, linewidth=1.4,
+#     color="black", label="|Bias|"
+# )
 ax.plot(
     x, summary["ubrmsd_mean"],
     marker="o", markersize=5, linewidth=1.4,
@@ -145,11 +145,11 @@ for xi, yi, n in zip(x, summary["rmse_mean"], summary["N"]):
         fontsize=8
     )
 
-ax.set_xlabel("Temporal window (days)")
+ax.set_xlabel("Temporal aggregation window (days)")
 ax.set_ylabel(r"Error ($m^3\,m^{-3}$)")
 ax.set_xticks(x)
 ax.legend(frameon=False, loc="upper right")
-ax.set_title("(b) Error sensitivity to temporal window")
+ax.set_title("(b) Error sensitivity to temporal aggregation window")
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
 
@@ -162,4 +162,37 @@ ax.spines["right"].set_visible(False)
 # fig.savefig(out_png, bbox_inches="tight")
 # fig.savefig(out_pdf, bbox_inches="tight")
 
+# plt.show()
+
+
+##################################################################
+# Code for fractional windows sign flip analysis
+##################################################################
+
+
+path = "./endpoint_diagnostics_Output/mean/combined_149039_150039/site_level_endpoint_diagnostics_mean_combined_149039_150039.xlsx"
+df = pd.read_excel(path)
+df = df[["signflip_fraction", "p_rho_tw0"]].dropna().copy()
+# Custom bins requested
+bins = [0.25, 0.50, 0.75, 1.00]
+labels = ["[0.25, 0.50]", "(0.50, 0.75]", "(0.75, 1.00]"]
+df["signflip_bin"] = pd.cut(df["signflip_fraction"], bins=bins, labels=labels, include_lowest=True)
+plot_df = df.dropna(subset=["signflip_bin"]).copy()
+fig, ax = plt.subplots(figsize=(7,5))
+groups = [plot_df.loc[plot_df["signflip_bin"] == lab, "p_rho_tw0"].values for lab in labels]
+ax.boxplot(groups, tick_labels=labels)
+ax.set_xlabel("Fraction of satellite-overpass windows with polarity disagreement")
+ax.set_ylabel("Pearson r")
+ax.grid(True, axis="y", alpha=0.3)
+plt.xticks(rotation=15, ha="right")
+plt.tight_layout()
+# out = "/mnt/data/boxplot_r_by_signflip_requestedbins.png"
+# plt.savefig(out, dpi=200, bbox_inches="tight")
 plt.show()
+print(plot_df["signflip_bin"].value_counts().reindex(labels))
+
+
+# Counts per bin:
+# [0.25, 0.50]: 48 sites
+# (0.50, 0.75]: 11 sites
+# (0.75, 1.00]: 22 sites

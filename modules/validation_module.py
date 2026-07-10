@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import metrics
 from utils import (
     SoilMoistureData,
     SebalSoilMoistureData,
@@ -111,25 +112,33 @@ def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict,
         max_v = float(max(x.max(), y.max()))
         ax.plot([min_v, max_v], [min_v, max_v], "--", color="gray", linewidth=1)
 
-    ax.set_xlabel("SEBAL-derived Soil Moisture (m³/m³)")
-    ax.set_ylabel("WITSMS Soil Moisture (m³/m³)")
-    ax.set_title(title)
+    ax.set_xlabel("SEBAL-derived soil moisture (m³/m³)")
+    ax.set_ylabel("WITSMS soil moisture (m³/m³)")
+    # ax.set_title("SEBAL-derived vs WITSMS soil moisture")
     ax.grid(True, alpha=0.3)
     ax.set_aspect("equal", adjustable="box")
 
-    mean_bias = stats_results["bias"]["mean"]
-    mean_mse = stats_results["mse"]["mean"]
-    mean_p = stats_results["p_rho"]["mean"]
-    mean_s = stats_results["s_rho"]["mean"]
-    mean_ubr = stats_results["ubrmsd"]["mean"]
 
-    rmse_disp = (mean_mse ** 0.5) if mean_mse is not None else float("nan")
+    bias = metrics.bias(x, y)
+    mse, mse_corr, mse_bias, mse_var = metrics.mse(x, y)
+    ubrmsd = metrics.ubrmsd(x, y)
+    p_rho = metrics.pearson_r(x, y)
+    s_rho = metrics.spearman_r(x, y)
+
+
+    # mean_bias = stats_results["bias"]["mean"]
+    # mean_mse = stats_results["mse"]["mean"]
+    # mean_p = stats_results["p_rho"]["mean"]
+    # mean_s = stats_results["s_rho"]["mean"]
+    # mean_ubr = stats_results["ubrmsd"]["mean"]
+
+    rmse = (mse ** 0.5) if mse is not None else float("nan")
     textstr = (
-        f"Bias = {mean_bias:.3f} m³/m³\n"
-        f"RMSE = {rmse_disp:.3f} m³/m³\n"
-        f"ubRMSD = {mean_ubr:.3f} m³/m³\n"
-        f"R = {mean_p:.3f}\n"
-        fr"$\rho$ = {mean_s:.3f}"
+        f"Bias = {bias:.3f} m³/m³\n"
+        f"MSE = {mse:.3f} (m³/m³)²\n"
+        f"ubRMSD = {ubrmsd:.3f} m³/m³\n"
+        f"R = {p_rho:.3f}\n"
+        fr"$\rho$ = {s_rho:.3f}"
         f"\nN = {len(paired_values)}"
     )
     ax.text(

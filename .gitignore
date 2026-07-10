@@ -16,3 +16,6 @@ validations_UQ/
 *.vscode*
 *.png  
 volatility_Output/
+validations_Output/
+endpoint_diagnostics_Output/
+validations_Output/figs/*.png

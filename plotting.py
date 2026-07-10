@@ -14,10 +14,13 @@ import matplotlib.colors as cl
 import pandas as pd
 import matplotlib.patches as mpatches
 from config import OUTLIER_THRESHOLD
+import numpy as np
+
+np.random.seed(42)  # For reproducibility of jittering
 
 # setup the paths for generated results files
-file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
-file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
+file_path_149039 = fr'.\Output\validations\results\validations_149039_tw_0.xlsx'
+file_path_150039 = fr'.\Output\validations\results\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
 param = 'mse'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
@@ -28,7 +31,7 @@ display_extent = False  # True to display the extent box on the full map
 def get_status_colors():
     cmap = plt.get_cmap('Set3', 14)
     colors = [cmap(i) for i in range(cmap.N)]
-    colors.insert(0, (0, 0.66666667, 0.89019608, 1.0))  # Special color
+    colors.insert(0, (0, 0.66666667, 0.89019358, 1.0))  # Special color
     colors.insert(0, (0.45882353, 0.08235294, 0.11764706, 1.0))
     return cl.ListedColormap(colors)
 
@@ -85,33 +88,37 @@ _colormaps = {
 df1 = pd.read_excel(file_path_149039)
 df2 = pd.read_excel(file_path_150039)
 
+
 # Filter rows where metric data is available
 metrics_columns = ['overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho']
 metric_names = {
     'overlaps': '# of Observations',
     'bias': 'Bias in m³/m³',
-    'mse': 'Mean squared error in m³/m³',
+    'mse': 'Mean squared error in (m³/m³)²',
     'ubrmsd': 'Unbiased root mean square deviation in m³/m³',
     'p_rho': "Pearson's r",
     's_rho': "Spearman's rho",
 }
+
 df1_filtered = df1.dropna(subset=metrics_columns)
 df2_filtered = df2.dropna(subset=metrics_columns)
 
-# Apply additional filters
-df1_filtered_ = df1_filtered[
-    (df1_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df1_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
-    ((df1_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df1_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df1_filtered['overlaps'] > 10)
-]
+# # Apply additional filters
+# df1_filtered_ = df1_filtered[
+#     (df1_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df1_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
+#     ((df1_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df1_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df1_filtered['overlaps'] > 10)
+# ]
 
-df2_filtered_ = df2_filtered[
-    (df2_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df2_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
-    ((df2_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df2_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df2_filtered['overlaps'] > 10)
-]
+# df2_filtered_ = df2_filtered[
+#     (df2_filtered['p_rho'] >= OUTLIER_THRESHOLD) & (df2_filtered['s_rho'] >= OUTLIER_THRESHOLD) |
+#     ((df2_filtered['p_rho'] < OUTLIER_THRESHOLD) | (df2_filtered['s_rho'] < OUTLIER_THRESHOLD)) & (df2_filtered['overlaps'] > 10)
+# ]
 
 # Combine and select required columns
-df_final = pd.concat([df1_filtered_, df2_filtered_], ignore_index=True)
+
+df_final = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
 df_final = df_final[['latitude', 'longitude'] + metrics_columns]
+
 
 print(f'Total Number of sites: {df_final["overlaps"].count()}')
 print(f'Total Number of data points: {df_final["overlaps"].sum()}')
@@ -132,7 +139,7 @@ if display_extent:
 
     # Plot 1: Entire map of Pakistan with the extent box
     fig1, ax1 = plt.subplots(figsize=(12, 10), subplot_kw={'projection': ccrs.PlateCarree()})
-    ax1.set_extent([60, 80, 20, 40], crs=ccrs.PlateCarree())  # Full map of Pakistan
+    ax1.set_extent([35, 80, 20, 40], crs=ccrs.PlateCarree())  # Full map of Pakistan
 
     # Add features to the map
     ax1.add_feature(cfeature.COASTLINE)
@@ -185,17 +192,21 @@ gl2.right_labels = False
 gl2.xlabel_style = {'size': 12, 'color': 'gray'}
 gl2.ylabel_style = {'size': 12, 'color': 'gray'}
 
+j = 0.05  # ~2 km-ish visually; tune carefully
+lons_j = np.array(lons) + np.random.uniform(-j, j, len(lons))
+lats_j = np.array(lats) + np.random.uniform(-j, j, len(lats))
+
 # Plot the scatter points
 if param == 'overlaps':
-    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
 elif param == 'bias':
-    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=-0.025, vmax=0.025)
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=-0.025, vmax=0.025)
 elif param == 'ubrmsd':
-    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=0.04)
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=0.04)
 elif param == 'mse':
-    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree(), vmin=0, vmax=0.01)
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=0.01)
 else:
-    sc = ax2.scatter(lons, lats, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=60, transform=ccrs.PlateCarree())
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree())
 
 
 # Add a color bar
