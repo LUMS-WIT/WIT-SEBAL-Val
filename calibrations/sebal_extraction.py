@@ -25,27 +25,27 @@ sites = [
         "name": "RIs",
         "LAT": 43.1439,
         "LON": -116.736,
-        "root_dir": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rls"
+        "root_dir": r"SEBAL_out\calibrations\Rls"
     },
     {
         "name": "Rms",
         "LAT": 43.0645,
         "LON": -116.7486,
-        "root_dir": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rms"
+        "root_dir": r"SEBAL_out\calibrations\Rms"
     },
 
     {
         "name": "Rwf",
         "LAT": 43.1207,
         "LON": -116.7231,
-        "root_dir": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Rwf"
+        "root_dir": r"SEBAL_out\calibrations\Rwf"
     },
 
     {
         "name": "Src",
         "LAT": 31.9083,
         "LON": -110.8395,
-        "root_dir": r"F:\SEBAL\datasets\SEBAL_out\calibrations\Src"
+        "root_dir": r"SEBAL_out\calibrations\Src"
     },
     # add more sites as needed
 ]

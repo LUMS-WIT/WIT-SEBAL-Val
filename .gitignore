@@ -8,7 +8,7 @@ ec_flux/
 temp*
 *.csv
 *.xlsx
-calibrations/
+calibrations/SEBAL_out/
 calibrated/
 ef_calibration/
 climate_analog/
