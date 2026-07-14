@@ -23,72 +23,46 @@ To run the models and scripts in this repository, ensure your system meets the f
 
 ## Usage
 
-This repository includes three primary scripts that serve different purposes:
+Run the project entry point:
 
-### 1. `config.py`
-- **Purpose**: Defines the paths, variables, and settings required by the project.
-- **Usage**:
-  - Edit the `config.py` file to set your paths and variables according to your system and dataset. The three main variables
-  are explained as follwing:
-  - Example:
-    ```python
-    # Define the input and output paths
-    ROW_PATH = "149039" # or "150039"
-    RESCALING = True # whether you want to apply statistical rescaling
-    COMBINE_VALIDATIONS = False # only to set true once both 150/149 overlapping points have been generated 
-    # Other configuration variables
-    ```
-  - Ensure all required paths and parameters are correctly set before running other scripts.
+```bash
+python main.py
+```
 
-### 2. `main.py`
-- **Purpose**: Contains the main execution code for validating SEBAL soil moisture estimates.
-- **Usage**:
-  - Run the script after configuring the `config.py` file.
-  - Command:
-    ```bash
-    python main.py
-    ```
-  - This script will:
-    - Load the configuration.
-    - generate_overalps(): Reading sms and raster data, finding the overlapping points 
-    and saving them in excel files along with metadata file.
-    - validations(): Compute statistics based on generated file.
+`main.py` currently does not accept command-line arguments.  
+Workflow selection is controlled directly in the file by enabling/disabling function calls.
 
-### 3. `plotting.py`
-- **Purpose**: Generates visualizations for the results in raster formats.
-- **Usage**:
-  - After running `main.py` and generating the results, use `plotting.py` to visualize them.
-  - Setup the following varaiables before running this file
-  - Command:
-    ```python
-    # setup the paths for generated results files
-    file_path_149039 = fr'.\validations\results\validations_149039_tw_0.xlsx'
-    file_path_150039 = fr'.\validations\results\validations_150039_tw_0.xlsx'
+---
 
-    # Define the paramter for plotting on a raster
-    param = 's_rho'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
-    ```
+## Workflow Selection (`main.py`)
 
-## Execution Workflow
-1. Edit `config.py` to define your paths and variables.
-2. Run `main.py` to execute the validation process.
-3. Run `plotting.py` to generate plots of the results.
+In `main.py`, uncomment the workflow you want to run and keep others commented (unless you intentionally want sequential execution):
 
-The execution of 1 and 2 should be done in following order:
+- `run_validation()`
+- `run_uncertainty()`
+- `run_endpoint_diagnostics_workflow()`
 
-![Flow Graph](sebal-val.png)
+Example pattern:
+
+```python
+if __name__ == "__main__":
+    run_validation()
+    run_uncertainty()
+    run_endpoint_diagnostics_workflow()
+```
+
+---
+
 
 ## Citation
 If you use this project in your research, please cite:
 ## Citation
 
 ```bibtex
-@preprint{rafique2025soilmoisture,
+@preprint{rafique2026soilmoisture,
   author       = {Hamza Rafique and Abubakr Muhammad},
-  title        = {Validation of Field Scale Soil Moisture Estimates for a Water-Stressed Region: A Case Study in the Indus River Basin, Pakistan},
-  year         = {2025},
+  title        = {Calibration and validation of field scale soil moisture estimates from an Energy Balance Model for the data-scarce Indus River Basin},
+  year         = {2026},
   note         = {Preprint, submitted to Journal of Hydrology: Regional Studies},
-  doi          = {10.2139/ssrn.5314199},
-  url          = {https://ssrn.com/abstract=5314199}
 }
 
