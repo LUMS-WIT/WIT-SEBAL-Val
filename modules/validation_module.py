@@ -100,7 +100,8 @@ def merge_metadata(df_a: pd.DataFrame, df_b: pd.DataFrame) -> pd.DataFrame:
 # -------------------------
 # Plotting (paired: always DISPLAY + SAVE)
 # -------------------------
-def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict, title: str):
+def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict, title: str,
+                             metrics_override=None):
     x = paired_values["sebal_sm"].to_numpy(dtype=float)
     y = paired_values["wit_sm"].to_numpy(dtype=float)
 
@@ -119,11 +120,19 @@ def make_paired_scatter_figure(paired_values: pd.DataFrame, stats_results: dict,
     ax.set_aspect("equal", adjustable="box")
 
 
-    bias = metrics.bias(x, y)
-    mse, mse_corr, mse_bias, mse_var = metrics.mse(x, y)
-    ubrmsd = metrics.ubrmsd(x, y)
-    p_rho = metrics.pearson_r(x, y)
-    s_rho = metrics.spearman_r(x, y)
+    if metrics_override is None:
+        # Keep the legacy callers' calculations unchanged.
+        bias = metrics.bias(x, y)
+        mse, mse_corr, mse_bias, mse_var = metrics.mse(x, y)
+        ubrmsd = metrics.ubrmsd(x, y)
+        p_rho = metrics.pearson_r(x, y)
+        s_rho = metrics.spearman_r(x, y)
+    else:
+        # The scaling workflow retains short/constant series: errors remain
+        # defined even when a correlation cannot be estimated.
+        bias, mse, ubrmsd, p_rho, s_rho = (
+            metrics_override[key] for key in ["bias", "MSE", "ubRMSD", "Pearson", "Spearman"]
+        )
 
 
     # mean_bias = stats_results["bias"]["mean"]

@@ -1,5 +1,19 @@
 from pathlib import Path
 
+# Independent five-fold workflow. These settings do not change the legacy,
+# uncertainty, volatility or endpoint workflows. RESCALING does not apply here:
+# both unscaled and held-out scaled outputs are always produced.
+SCALING_PROJECT_ROOT = Path(__file__).resolve().parent
+SCALING_WIT_SMS_PATH = SCALING_PROJECT_ROOT / "witsms/processed/Nestle SMS/daily"
+SCALING_RASTER_BASE = SCALING_PROJECT_ROOT / "dataset/validations/rzsm"
+SCALING_OUTPUT_BASE = SCALING_PROJECT_ROOT / "outputs/validation_scaling"
+# Explicit historical cohort, independent of output workbooks. Set to None to
+# evaluate all GPIs with matched data instead of reproducing the 66-GPI cohort.
+SCALING_COHORT_FILE = SCALING_PROJECT_ROOT / "validation_inputs/five_fold_cohort.json"
+SCALING_N_FOLDS = 5
+SCALING_SHOW_PLOTS = False
+SCALING_SAVE_SITE_PLOTS = False
+
 # rows to run (2 rows for your case, but can be 1)
 ROW_PATHS = ["149039", "150039"]
 

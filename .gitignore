@@ -18,3 +18,9 @@ validations_UQ/
 volatility_Output/
 validations_Output/
 endpoint_diagnostics_Output/
+witsms
+dataset
+outputs
+.DS_Store
+validation_archive/
+tests

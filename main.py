@@ -1,10 +1,12 @@
 from workflows.validation_workflow import main as run_validation
+from workflows.validation_scaling_workflow import main as run_validation_scaling
 from workflows.uncertainty_workflow import main as run_uncertainty
 from workflows.volatility_workflow import main as run_volatility
 from workflows.endpoint_workflow import main as run_endpoint_diagnostics_workflow
 
 if __name__ == "__main__":
-    run_validation()
+    # run_validation()
+    run_validation_scaling()
     # run_uncertainty()
     # run_volatility()  # no appreciable results
     # run_endpoint_diagnostics_workflow()
