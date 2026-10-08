@@ -269,9 +269,9 @@ def export_validation_results(heldout, metadata, output, rows, member, temporal_
                               show_plots=False, save_site_plots=False):
     """Preserve the legacy sheets/columns and plots without its score filtering.
 
-    Combined MetaData retains one row per GPI/satellite-row series, as intended
-    by the legacy format. It does not perform the legacy many-to-many GPI join.
-    The separate per_gpi_metrics.csv aggregates each GPI across satellite rows.
+    Combined MetaData has one row per GPI, with metrics and confidence limits
+    recomputed from all its held-out pairs across satellite rows. Row-specific
+    workbooks retain their own observations. No pairs are discarded or averaged.
     """
     import matplotlib.pyplot as plt
     import metrics
@@ -283,26 +283,34 @@ def export_validation_results(heldout, metadata, output, rows, member, temporal_
     lookup = metadata.set_index("gpi")
     if not lookup.index.is_unique:
         raise ValueError("Metadata must have one record per GPI.")
+
+    def metric_table(pairs, method):
+        records = []
+        for gpi, site in pairs.groupby("gpi"):
+            m = lookup.loc[gpi].to_dict()
+            m.update(gpi=str(gpi), overlaps=len(site))
+            x, y = site[method].to_numpy(), site.observed.to_numpy()
+            scores = error_metrics(x, y)
+            b, u = scores["bias"], scores["ubRMSD"]
+            bl, bu = metrics.bias_ci(x, y, b) if len(site) > 1 else (np.nan, np.nan)
+            ul, uu = metrics.ubrmsd_ci(x, y, u) if len(site) > 1 else (np.nan, np.nan)
+            records.append({**m, "bias_cl": bl, "bias": b, "bias_cu": bu,
+                            "mse": scores["MSE"], "ubrmsd_cl": ul, "ubrmsd": u,
+                            "ubrmsd_cu": uu, "p_rho": scores["Pearson"], "s_rho": scores["Spearman"]})
+        return pd.DataFrame(records, columns=meta_columns + metric_columns)
+
     for method, folder in [("raw", "unscaled"), ("scaled", "scaled")]:
         base = output / folder
         tables = []
         for row in rows:
             subset = heldout[heldout.row.astype(str).eq(str(row))]
-            records = []
+            table = metric_table(subset, method)
             points_dir = base / "validation_points" / member / f"{row}_{temporal_win}"
             points_dir.mkdir(parents=True, exist_ok=True)
             for gpi, site in subset.groupby("gpi"):
                 m = lookup.loc[gpi].to_dict()
                 m.update(gpi=str(gpi), overlaps=len(site))
                 x, y = site[method].to_numpy(), site.observed.to_numpy()
-                scores = error_metrics(x, y)
-                b, u = scores["bias"], scores["ubRMSD"]
-                # Legacy code passed ubRMSD as the bias centre; use the actual bias.
-                bl, bu = metrics.bias_ci(x, y, b) if len(site) > 1 else (np.nan, np.nan)
-                ul, uu = metrics.ubrmsd_ci(x, y, u) if len(site) > 1 else (np.nan, np.nan)
-                records.append({**m, "bias_cl": bl, "bias": b, "bias_cu": bu,
-                                "mse": scores["MSE"], "ubrmsd_cl": ul, "ubrmsd": u,
-                                "ubrmsd_cu": uu, "p_rho": scores["Pearson"], "s_rho": scores["Spearman"]})
                 name = f"sebal_{row}_{member}_witgpi_{gpi}_lat_{m['latitude']}_lon_{m['longitude']}"
                 point_frame = pd.DataFrame({"Timestamp": pd.to_datetime(site.date), "wit_sm": y, "sebal_sm": x})
                 point_frame.to_excel(points_dir / (name + ".xlsx"), index=False, engine="openpyxl")
@@ -312,12 +320,11 @@ def export_validation_results(heldout, metadata, output, rows, member, temporal_
                     save_to_plot(point_frame.Timestamp, y, point_frame.Timestamp, x,
                                  m["latitude"], m["longitude"], str(image_dir / (name + ".png")))
                     plt.close("all")
-            table = pd.DataFrame(records, columns=meta_columns + metric_columns)
             table[meta_columns].to_excel(points_dir.parent / f"metadata_{row}_tw_{temporal_win}.xlsx",
                                          index=False, engine="openpyxl")
             tables.append(table)
         groups = [(str(row), tables[i], heldout[heldout.row.astype(str).eq(str(row))]) for i, row in enumerate(rows)]
-        groups.append((None, pd.concat(tables, ignore_index=True), heldout))
+        groups.append((None, metric_table(heldout, method), heldout))
         for row, table, pairs in groups:
             if pairs.empty:
                 continue
@@ -396,7 +403,9 @@ def run_validation_scaling(*, wit_sms_path, raster_base, output_base, cohort_fil
         report.extend(f"| {key} | {summary['raw'][key]:.6f} | {summary['scaled'][key]:.6f} |"
                       for key in ["bias", "MSE", "RMSE", "ubRMSD", "Pearson", "Spearman"])
         report.extend(["", "The comparison box plot uses one value per GPI, combining its satellite rows. "
-                       "The legacy-format workbooks retain one row per GPI/satellite-row series. "
+                       "The combined workbook and combined metric/CI plots also use one value per GPI, "
+                       "recomputing metrics and confidence limits from all its paired observations. "
+                       "The two row-specific workbooks and plots retain their own observations. "
                        "Their Summary sheet uses the existing Fisher-z mean for correlations, not the pooled correlation above.", "",
                        "Per-GPI and within-fold correlations are invariant under their common positive affine transform. "
                        "Concatenating folds uses different transforms, so pooled correlations may change.", "",
@@ -414,7 +423,7 @@ def run_validation_scaling(*, wit_sms_path, raster_base, output_base, cohort_fil
                           calibration="Training pairs only; common mean/std affine transform; ddof=0; pair weighted",
                           assignment="Coordinate-only equal-count strips along leading geographic principal axis; no buffer",
                           filtering="Finite matched pairs, fixed sensor QC 0.12–0.90; no correlation-score filtering",
-                          workbook_summary="Legacy site-row summary; correlations use legacy Fisher-z mean",
+                          workbook_summary="Combined: one result per GPI across satellite rows; row-specific: one result per GPI within that row; correlations use legacy Fisher-z mean",
                           raw_pairs_sha256=hashlib.sha256((staging / "raw_pairs.csv").read_bytes()).hexdigest())
         provenance["generated_files"] = sorted(str(p.relative_to(staging)) for p in staging.rglob("*") if p.is_file())
         (staging / "manifest.json").write_text(json.dumps(provenance, indent=2))

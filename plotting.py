@@ -120,11 +120,17 @@ df2_filtered = df2.dropna(subset=metrics_columns)
 # Combine and select required columns
 
 df_final = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
-df_final = df_final[['latitude', 'longitude'] + metrics_columns]
+df_final = df_final[['gpi', 'latitude', 'longitude'] + metrics_columns]
 
 
-print(f'Total Number of sites: {df_final["overlaps"].count()}')
-print(f'Total Number of data points: {df_final["overlaps"].sum()}')
+# A GPI may occur in both swaths, and different GPIs can share coordinates.
+# Count sites by exact coordinate pairs; retain all series for the pair total.
+unique_sites = df_final[['latitude', 'longitude']].dropna().drop_duplicates().shape[0]
+unique_gpis = df_final['gpi'].nunique()
+print(f'Total unique sites (distinct latitude/longitude): {unique_sites}')
+print(f'Total unique GPIs: {unique_gpis}')
+print(f'Total GPI-swath series: {len(df_final)}')
+print(f'Total matched observation pairs: {int(df_final["overlaps"].sum())}')
 
 # Extract latitude, longitude, and parameter values
 lats = df_final['latitude'].tolist()

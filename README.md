@@ -92,10 +92,12 @@ Results are written to `outputs/validation_scaling/`:
 - Raw pairs, held-out predictions, fold assignments, per-fold/per-GPI metrics,
   `summary.json`, `REPORT.md`, and an input/protocol manifest.
 
-The combined workbook contains one record per GPI/satellite-row series, without
-the legacy many-to-many GPI merge. Currently these are 73 series, representing
-66 GPIs and 445 pairs. The comparison box plot combines each GPI's satellite
-rows, giving 66 values per method. Workbook Summary correlations retain the
+The combined workbook, combined metric/CI plots and comparison box plot each
+use one record per GPI, pooling its held-out observations across satellite rows
+before recomputing metrics and confidence limits. Currently these are 66 GPIs
+and 445 pairs. Sensor metadata counts are retained once per GPI, while overlaps
+count all its matched pairs. The two row-specific workbooks and their plots
+remain separate (26 and 47 GPIs respectively). Workbook Summary correlations retain the
 legacy Fisher-z mean; the JSON report also distinguishes arithmetic site means
 and pooled held-out correlations. Do not interchange these summaries.
 
