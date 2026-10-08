@@ -19,11 +19,14 @@ import numpy as np
 np.random.seed(42)  # For reproducibility of jittering
 
 # setup the paths for generated results files
-file_path_149039 = fr'.\Output\validations\results\validations_149039_tw_0.xlsx'
-file_path_150039 = fr'.\Output\validations\results\validations_150039_tw_0.xlsx'
+# file_path_149039 = fr'.\Output\validations\results\validations_149039_tw_0.xlsx'
+# file_path_150039 = fr'.\Output\validations\results\validations_150039_tw_0.xlsx'
+
+file_path_149039 = fr'.\Output\validations\results\5fold_scaling\validations_149039_tw_0.xlsx'
+file_path_150039 = fr'.\Output\validations\results\5fold_scaling\validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
-param = 'mse'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+param = 's_rho'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
 display_extent = False  # True to display the extent box on the full map
 
 
@@ -93,9 +96,9 @@ df2 = pd.read_excel(file_path_150039)
 metrics_columns = ['overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho']
 metric_names = {
     'overlaps': '# of Observations',
-    'bias': 'Bias in m³/m³',
-    'mse': 'Mean squared error in (m³/m³)²',
-    'ubrmsd': 'Unbiased root mean square deviation in m³/m³',
+    'bias': 'Bias [m³/m³]',
+    'mse': 'Mean squared error [m³/m³]²',
+    'ubrmsd': 'UbRMSD [m³/m³]',
     'p_rho': "Pearson's r",
     's_rho': "Spearman's rho",
 }
@@ -200,13 +203,13 @@ lats_j = np.array(lats) + np.random.uniform(-j, j, len(lats))
 if param == 'overlaps':
     sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=26)
 elif param == 'bias':
-    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=-0.025, vmax=0.025)
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=-0.075, vmax=0.025)
 elif param == 'ubrmsd':
     sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=0.04)
 elif param == 'mse':
     sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=0, vmax=0.01)
-else:
-    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree())
+elif param == 'p_rho' or param == 's_rho':
+    sc = ax2.scatter(lons_j, lats_j, c=values, cmap=_colormaps[param], marker='o', edgecolor='k', s=35, transform=ccrs.PlateCarree(), vmin=-0.4, vmax=1)
 
 
 # Add a color bar

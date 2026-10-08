@@ -4,14 +4,14 @@ from pathlib import Path
 # uncertainty, volatility or endpoint workflows. RESCALING does not apply here:
 # both unscaled and held-out scaled outputs are always produced.
 SCALING_PROJECT_ROOT = Path(__file__).resolve().parent
-SCALING_WIT_SMS_PATH = SCALING_PROJECT_ROOT / "witsms/processed/Nestle SMS/daily"
-SCALING_RASTER_BASE = SCALING_PROJECT_ROOT / "dataset/validations/rzsm"
-SCALING_OUTPUT_BASE = SCALING_PROJECT_ROOT / "outputs/validation_scaling"
+
+
 # Explicit historical cohort, independent of output workbooks. Set to None to
 # evaluate all GPIs with matched data instead of reproducing the 66-GPI cohort.
 SCALING_COHORT_FILE = SCALING_PROJECT_ROOT / "validation_inputs/five_fold_cohort.json"
+
 SCALING_N_FOLDS = 5
-SCALING_SHOW_PLOTS = False
+SCALING_SHOW_PLOTS = True
 SCALING_SAVE_SITE_PLOTS = False
 
 # rows to run (2 rows for your case, but can be 1)
@@ -39,12 +39,16 @@ SHOW_ALL_PLOTS = True     # show box/CI plots for non-final runs
 
 # inputs
 WIT_SMS_PATH = r"D:/SEBAL/datasets/witsms/processed/Nestle SMS/daily"
+SCALING_WIT_SMS_PATH = WIT_SMS_PATH
 RASTER_BASE = r"D:/SEBAL/datasets/validation/LBDC_validations/rzsm"  # expects: {RASTER_BASE}/{member}/{row}/
+SCALING_RASTER_BASE = RASTER_BASE 
+
 
 # outputs validations
 VAL_BASE = Path(r".\validations_Output\validation_points")  # expects: {VAL_BASE}/{member}/{row}_{tw}/
 FIG_BASE = Path(r".\validations_Output\figs")
 RESULTS_BASE = Path(r".\validations_Output\results")
+SCALING_OUTPUT_BASE = Path(r".\validations_Output\results\scaling")  # expects: {SCALING_OUTPUT_BASE}/{row}_{tw}/
 
 
 # outputs UQ
