@@ -8,6 +8,7 @@ import tempfile
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr, spearmanr
+from metrics import mean_r
 
 
 def error_metrics(x, y):
@@ -447,4 +448,11 @@ def run_validation_scaling(*, wit_sms_path, raster_base, output_base, cohort_fil
         raise
     print(f"[scaling] Complete: {len(gpis)} GPIs, {len(locations)} locations, {len(pairs)} pairs -> {output}")
     print(pd.DataFrame({m: summary[m] for m in ["raw", "scaled"]}).to_string())
+    print("\nEqual-weight Fisher mean")
+    print("Per GPI, combining satellite swaths")
+    print(pd.DataFrame({
+        label: {metric: mean_r(sites.loc[sites.method.eq(method), metric])
+                for metric in ["Pearson", "Spearman"]}
+        for method, label in [("raw", "Unscaled"), ("scaled", "Scaled")]
+    }).to_string(float_format=lambda value: f"{value:.6f}"))
     return output

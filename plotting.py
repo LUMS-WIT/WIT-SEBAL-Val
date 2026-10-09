@@ -24,9 +24,12 @@ np.random.seed(42)  # For reproducibility of jittering
 
 file_path_149039 = fr'.\Output\validations\results\5fold_scaling\validations_149039_tw_0.xlsx'
 file_path_150039 = fr'.\Output\validations\results\5fold_scaling\validations_150039_tw_0.xlsx'
+# file_path_149039 = fr'Output/validations/results/5fold_scaling/validations_149039_tw_0.xlsx'
+# file_path_150039 = fr'Output/validations/results/5fold_scaling/validations_150039_tw_0.xlsx'
 
 # Define the paramter for plotting on a raster
 param = 's_rho'  # 'overlaps', 'bias', 'mse', 'ubrmsd', 'p_rho', 's_rho'
+min_count = 6  # Minimum matched pairs per GPI-swath series for correlation maps only.
 display_extent = False  # True to display the extent box on the full map
 
 
@@ -122,6 +125,10 @@ df2_filtered = df2.dropna(subset=metrics_columns)
 df_final = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
 df_final = df_final[['gpi', 'latitude', 'longitude'] + metrics_columns]
 
+if param in ('p_rho', 's_rho'):
+    df_final = df_final.loc[df_final['overlaps'] >= min_count].copy()
+    if df_final.empty:
+        raise ValueError(f'No correlation records have at least {min_count} matched pairs.')
 
 # A GPI may occur in both swaths, and different GPIs can share coordinates.
 # Count sites by exact coordinate pairs; retain all series for the pair total.
