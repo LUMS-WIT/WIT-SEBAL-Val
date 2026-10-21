@@ -1,5 +1,6 @@
 # Private inputs, paths, observations, locations and generated results.
 /config_local.py
+/README.private.md
 /.env
 /.env.*
 !/.env.example
