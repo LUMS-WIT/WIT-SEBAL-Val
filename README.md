@@ -1,131 +1,90 @@
-# SEBAL Soil Moisture estimates validation 
+# WIT-SEBAL-Val
 
-This repository contains the code for Validation of SEBAL soil moisture estimates using WIT SMS Network over Central Punjab.
+SEBAL soil-moisture calibration, bootstrap uncertainty and WITSMS validation for
+Bari Doab. Final analyses run through `main.py`; pySEBAL stays separate.
 
-## Installation and Setup
-To run the models and scripts in this repository, ensure your system meets the following requirements:
-
-### Prerequisites
-- Python 3.8 or higher
-- Input Dataset(s)
-  - Soil moisture raster maps
-  - WITSMS-Network Dataset
-
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/LUMS-WIT/WIT-SEBAL-Val.git
-   cd WIT-SEBAL-Val
-
-2. **Install Dependencies using conda**
-   ```bash
-   conda env create -f requirements.yml
-   conda activate sebal-val
-
-## Usage
-
-Run the project entry point:
+## Set up once
 
 ```bash
-python main.py
+conda env create -f requirements.yml
+conda activate sebal-val
 ```
 
-`main.py` currently does not accept command-line arguments.  
-Workflow selection is controlled directly in the file by enabling/disabling function calls.
+Copy `config_local.example.py` to `config_local.py` if your paths differ from
+`config.py`. On your existing PC, keep the private data where they are and set
+those paths in the local file. The same commands work on Windows and macOS.
 
----
+Private inputs are **not included in Git**. Retain these on your PC:
 
-## Workflow Selection (`main.py`)
+| Analysis | Local inputs |
+|---|---|
+| Validation and daily variability | WITSMS daily CSVs; `rzsm/mean/{swath}/*.tif`; `validation_inputs/private/five_fold_cohort.json` |
+| Calibration | Two workbooks under `calibrations/`; retained `calibration_pairs.csv` under `uncertainty/bootstrap/inputs/calibration/` |
+| Climate comparison | `CLIMATE_INPUT` CSV |
+| Uncertainty figures | Completed regional ensembles and their original coefficient bank under `uncertainty/bootstrap/inputs/regional/` |
+| Rice diagnostics | `SouthAsiaRice_Pakistan.zip` and `Punjab-Rice10_2024.tif` in `RICE_INPUT_ROOT` |
 
-In `main.py`, uncomment the workflow you want to run and keep others commented (unless you intentionally want sequential execution):
+The configured defaults preserve this checkout's existing inputs. A new public
+checkout needs access to those inputs; it cannot reproduce field results from
+source code alone. [Input formats](docs/inputs.md) describe what each stage reads.
 
-- `run_validation()`
-- `run_validation_scaling()` (currently enabled)
-- `run_uncertainty()`
-- `run_endpoint_diagnostics_workflow()`
+## Reproduce
 
-Example pattern:
-
-```python
-if __name__ == "__main__":
-    run_validation()
-    run_uncertainty()
-    run_endpoint_diagnostics_workflow()
-```
-
----
-
-## Five-fold validation with independent rescaling
-
-`python main.py` currently runs `run_validation_scaling()`. To run a different
-workflow, change only the calls in `main.py`. The other workflows and their
-configuration settings retain their existing behavior.
-
-The `SCALING_*` settings in `config.py` configure the new workflow separately.
-It reads fresh raw rasters and sensor CSVs, looks up sensors by GPI, applies the
-existing sensor quality-control and temporal-matching rules, and produces both
-unscaled and scaled results regardless of the legacy `RESCALING` switch.
-`ROW_PATHS`, `VALIDATION_MEMBER`, and `TEMPORAL_WIN` select the inputs as before.
-
-The default cohort is explicitly listed in `validation_inputs/five_fold_cohort.json`.
-It reproduces the agreed historical cohort: 66 GPIs, 61 exact-coordinate
-locations and currently 445 matched pairs. This cohort was previously selected
-using correlation scores; five-fold calibration does not remove that inherited
-selection bias. Set `SCALING_COHORT_FILE = None` to use all GPIs with matched data.
-There is no additional filtering by correlation performance.
-
-Five folds are equal-location-count geographic strips along the leading
-coordinate principal axis. Co-located GPIs and all dates/satellite rows of a GPI
-stay together. For each fold, the other four provide the pooled training mean
-and population standard deviation. Their affine transform is applied only to
-the held-out fold. Every pair is validated once. There is no spatial buffer.
-
-Results are written to `outputs/validation_scaling/`:
-
-- `scaled/` and `unscaled/`: the usual `validation_points/<member>/<row>_<tw>/`,
-  metadata workbooks, `results/validations_<row>_tw_<tw>.xlsx`, combined
-  `results/validations_tw_<tw>.xlsx`, and `figs/` with paired scatters, metric box
-  plots and bias/ubRMSD CI plots. `MetaData` and `Summary` sheets retain their
-  original names and columns. All aggregate plots are saved automatically.
-- `figs/error_metric_boxplots.png` (also PDF/SVG): paired per-GPI bias, MSE and
-  ubRMSD distributions, with median labels and no title or footer text.
-- `figs/five_fold_results.png` (also PDF/SVG): geographic folds and fold RMSEs.
-- Raw pairs, held-out predictions, fold assignments, per-fold/per-GPI metrics,
-  `summary.json`, `REPORT.md`, and an input/protocol manifest.
-
-The combined workbook, combined metric/CI plots and comparison box plot each
-use one record per GPI, pooling its held-out observations across satellite rows
-before recomputing metrics and confidence limits. Currently these are 66 GPIs
-and 445 pairs. Sensor metadata counts are retained once per GPI, while overlaps
-count all its matched pairs. The two row-specific workbooks and their plots
-remain separate (26 and 47 GPIs respectively). Workbook Summary correlations retain the
-legacy Fisher-z mean; the JSON report also distinguishes arithmetic site means
-and pooled held-out correlations. Do not interchange these summaries.
-
-Bias CIs in the new workflow use the actual bias as their centre, correcting a
-wrong argument in the legacy exporter without changing other workflows. The
-existing parametric CI assumptions are retained; they do not account for
-calibration uncertainty or spatial/temporal dependence.
-
-`SCALING_SHOW_PLOTS` controls display; `SCALING_SAVE_SITE_PLOTS` additionally
-saves per-series matched time-series plots. A complete run replaces only this
-workflow's own managed outputs. Failed runs preserve the last successful run;
-manually added files in its output directory prevent replacement.
-
-Run the focused checks with:
+Run from the repository root:
 
 ```bash
-MPLBACKEND=Agg python -m unittest discover -s tests -v
+python main.py --list
+python main.py --all --check
+python main.py --all
 ```
 
+`--check` reports missing files/packages before anything runs. `--all` runs the
+final analyses from retained inputs, excluding optional raw preprocessing.
+Results go to `outputs/reproduction/`; existing dated results stay in place.
+`results_index.json` lists generated artifacts, and `runs/` retains run records.
 
-## Citation
-If you use this project in your research, please cite:
-## Citation
+For individual stages, use `python main.py --task NAME`:
 
-```bibtex
-@preprint{rafique2026soilmoisture,
-  author       = {Hamza Rafique and Abubakr Muhammad},
-  title        = {Calibration and validation of field scale soil moisture estimates from an Energy Balance Model for the data-scarce Indus River Basin},
-  year         = {2026},
-  note         = {Preprint, submitted to Journal of Hydrology: Regional Studies},
-}
+| NAME | Results |
+|---|---|
+| `climate` | Analog-distance table |
+| `calibration-merge`, `calibration-fit`, `calibration-plots` | Calibration tables, coefficients and EF/LE figures |
+| `validation` | Unscaled and five-fold rescaled metrics, error/CI/fold figures |
+| `maps`, `coverage` | Spatial metric maps and sample-coverage figures |
+| `uncertainty-samples`, `uncertainty` | Bootstrap bank; uncertainty figures and summaries |
+| `volatility` | MASD/MSSD tables and supplementary figure |
+| `rice`, `rice-seasonal` | Rice overlays and seasonal error diagnostics |
+| `figures` | Numbered result figures together in one folder |
+| `verify` | Check the reported numerical results against the study reference |
+
+Repeat `--task` to run several stages; selected producers run first. Otherwise,
+upstream results must already exist. `python main.py --help` includes examples
+and optional raw extraction commands. No arguments still run validation only.
+
+pySEBAL is never launched by `main.py`. Use its
+[separate instructions](extra%20code/SEBAL/BOOTSTRAP_README.md) to regenerate
+regional model ensembles, then run `--task uncertainty`. New bootstrap samples
+do not replace the coefficient bank associated with completed model runs.
+
+## Source layout and checks
+
+`modules/` contains calculations/plotting; `workflows/` connects stages and
+checks inputs. Superseded drivers and session files are retained locally under
+ignored `private_archive/`; old outputs and private data are also ignored.
+Publish source through Git, not a ZIP of the working folder.
+
+`python main.py --task export-source` prepares `outputs/reproduction/public_source/`
+without private files or Git history. Use that folder for a fresh public
+repository: the current repository's older history still contains data workbooks.
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The fixed validation cohort reproduces the study's historical selection;
+held-out rescaling does not remove that selection limitation. Set
+`SCALING_COHORT_FILE = None` to evaluate all eligible records in a new analysis.
+
+Citation: Hamza Rafique and Abubakr Muhammad (2026), *Calibration and validation
+of field scale soil moisture estimates from an Energy Balance Model for the
+data-scarce Indus River Basin*, submitted to Journal of Hydrology: Regional Studies.

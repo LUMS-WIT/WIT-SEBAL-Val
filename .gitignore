@@ -1,26 +1,71 @@
-validations/
-__pycache__/
-figures/
-*.svg
-.$*
-ec_flux/
-*.txt
-temp*
+# Private inputs, paths, observations, locations and generated results.
+/config_local.py
+/.env
+/.env.*
+!/.env.example
+/dataset/
+/witsms/
+/ec_flux/
+/uncertainty/
+/outputs/
+/Output/
+/validations/
+/validations_Output/
+/validations_UQ/
+/volatility_Output/
+/endpoint_diagnostics_Output/
+/validation_archive/
+/climate_analog/
+/calibrated/
+/ef_calibration/
+/calibrations/SEBAL_out/
+/private_archive/
+/validation_inputs/private/
+# Data exports can contain field identifiers, coordinates and local paths.
 *.csv
 *.xlsx
-calibrations/SEBAL_out/
-calibrated/
-ef_calibration/
-climate_analog/
-validations_UQ/
-*.vscode*
-*.png  
-volatility_Output/
-validations_Output/
-endpoint_diagnostics_Output/
-witsms
-dataset
-outputs
+*.xls
+*.tif
+*.TIF
+*.tiff
+*.nc
+*.zip
+*.gz
+*.tar
+*.log
+*.pem
+*.key
+*.p12
+credentials.json
+token.json
+# Keep model source public, model inputs and scratch products private.
+/extra code/SEBAL/ensemble_inputs/
+/extra code/SEBAL/outputs/
+/extra code/SEBAL/Output/
+/extra code/SEBAL/scratch/
+/extra code/archive/
+# Session histories, local conversations, drafts and editor configuration.
+.Rhistory
+.RData
 .DS_Store
-validation_archive/
-tests
+.vscode/
+.idea/
+.codex/
+.agents/
+*conversation*.jsonl
+*chat_export*
+*.txt
+!requirements.txt
+# Generated media and caches.
+*.png
+*.pdf
+*.svg
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.envs/
+*.egg-info/
+build/
+dist/
+.$*
