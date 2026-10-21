@@ -4,6 +4,17 @@ This program stays outside `main.py`. Its workbooks, raster inputs, locations
 and generated outputs are private and ignored by Git. Original model author
 headers are preserved.
 
+For the separate central product, use:
+
+```bash
+python "extra code/SEBAL/Run_py3.py" --excel "path/to/local_workbook.xlsx" --start-row 2 --end-row 97
+```
+
+This runner explicitly sets the study central EF coefficients (`alpha=-0.089`,
+`beta=0.343`), overriding the legacy lower-member constants in the model source.
+Use `--alpha` and `--beta` for another documented calibration. Workbook paths
+must exist on the current computer. Neither runner is called by `main.py`.
+
 First generate coefficients from the repository root:
 
 ```bash

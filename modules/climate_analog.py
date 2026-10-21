@@ -1,108 +1,91 @@
-"""Climate comparison using the original study calculation and thresholds."""
+"""Reproduce the historical climate score; retain its formula transparently.
+
+The legacy output column is named Mahalanobis_D, but the published score
+combines sqrt(Q) with squared standardized aridity before another square
+root. It is not a conventional five-variable Mahalanobis distance. Changing
+that formula would change the study analysis, so it is not done here.
+"""
 from pathlib import Path
-import pandas as pd
+import hashlib
+import json
+import re
+
 import numpy as np
+import pandas as pd
 from scipy.stats import chi2
+
+YEARS = range(1981, 2011)
+VARIABLES = ('TempRange', 'PrecipWQ', 'VPD', 'Wind')
+METHOD_NOTE = (
+    'Historical reproduction: score = sqrt(sqrt(Q) + z_AI**2), where Q is '
+    'the four-variable dynamic-climate quadratic form. The legacy column '
+    'Mahalanobis_D is retained for compatibility. This is not a conventional '
+    'Mahalanobis distance; chi-square classification is reproduced from the '
+    'original code and requires methodological review before interpretation.'
+)
+
+
+def calculate(data):
+    """Return the original scores and a formula/provenance diagnostic.
+
+    Raw annual observations are required; summary and result-only CSVs are
+    not interchangeable inputs. Earth Engine numeric column prefixes are
+    accepted, but each variable/year must occur exactly once.
+    """
+    df = data.copy()
+    if not {'Site', 'AI'}.issubset(df.columns):
+        raise ValueError('Climate input requires Site, AI and annual fields for 1981–2010.')
+    if df.Site.isna().any() or df.Site.duplicated().any() or (df.Site == 'Bari_Doab').sum() != 1:
+        raise ValueError('Site names must be unique and include exactly one Bari_Doab reference.')
+    columns = {}
+    for variable in VARIABLES:
+        columns[variable] = []
+        for year in YEARS:
+            matches = [c for c in df.columns if re.fullmatch(r'(?:\d+_)?' + variable + '_' + str(year), c)]
+            if len(matches) != 1:
+                raise ValueError(f'Expected one {variable}_{year} field; found {len(matches)}. Use the annual-input CSV.')
+            columns[variable].append(matches[0])
+    required = ['AI'] + [c for variable in VARIABLES for c in columns[variable]]
+    numeric = df[required].apply(pd.to_numeric, errors='raise')
+    if not np.isfinite(numeric.to_numpy()).all():
+        raise ValueError('Climate input contains nonfinite annual observations or aridity values.')
+    df[required] = numeric
+    df = df.copy()  # Consolidate the many annual columns after numeric conversion.
+
+    annual = np.stack([df[columns[v]].to_numpy(dtype=float) for v in VARIABLES], axis=-1)
+    reference = np.flatnonzero(df.Site.eq('Bari_Doab'))[0]
+    covariance = np.cov(annual[reference], rowvar=False)
+    if np.linalg.matrix_rank(covariance) < len(VARIABLES):
+        raise ValueError('Reference annual climate covariance is singular.')
+    inverse = np.linalg.inv(covariance)
+    delta = annual.mean(axis=1) - annual[reference].mean(axis=0)
+    quadratic = np.maximum(np.einsum('ij,jk,ik->i', delta, inverse, delta), 0.)
+    aridity_sd = df.AI.std(ddof=1)
+    if not np.isfinite(aridity_sd) or aridity_sd <= 0:
+        raise ValueError('Aridity values must have positive between-site standard deviation.')
+    aridity_squared = ((df.AI.to_numpy() - df.iloc[reference].AI) / aridity_sd)**2
+    score = np.sqrt(np.sqrt(quadratic) + aridity_squared)
+    lower, upper = np.sqrt(chi2.ppf([.95, .9999], 5))
+    result = df.assign(Mahalanobis_D=score, Analog_Class=np.select(
+        [score <= lower, score <= upper],
+        ['Acceptable Analog', 'Marginal Analog (2–4σ)'], default='Novel Climate (>4σ)'))
+    diagnostic = dict(
+        method_note=METHOD_NOTE,
+        years=[min(YEARS), max(YEARS)], variables=list(VARIABLES),
+        historical_thresholds=dict(lower=float(lower), upper=float(upper)),
+        # A diagnostic alternative, not a replacement or a claimed full 5-D covariance fit.
+        quadratic_plus_aridity_diagnostic=dict(zip(df.Site, np.sqrt(quadratic + aridity_squared).tolist())),
+    )
+    return result, diagnostic
 
 
 def run(input_file, output_dir):
-    output_dir = Path(output_dir)
+    input_file, output_dir = Path(input_file), Path(output_dir)
+    result, diagnostic = calculate(pd.read_csv(input_file))
     output_dir.mkdir(parents=True, exist_ok=True)
-    df = pd.read_csv(input_file)
-
-    years = np.arange(1981, 2011)
-    vars_dyn = ["TempRange", "PrecipWQ", "VPD", "Wind"]
-
-    # def extract_ts(row):
-    #     return np.column_stack([
-    #         [row[f"{v}_{y}"] for y in years] for v in vars_dyn
-    #     ])
-
-    # --------------------------------------------------
-    # 2. Helper: extract annual time series robustly
-    # --------------------------------------------------
-    def extract_ts(row):
-        ts = []
-        for v in vars_dyn:
-            # cols = [c for c in df.columns if c.endswith(f"{v}_{y}") for y in years]
-            cols = [c for c in df.columns if any(c.endswith(f"{v}_{y}") for y in years)]
-            vals = [row[c] for c in cols]
-            ts.append(vals)
-        return np.column_stack(ts)
-
-    # -------------------------
-    # Reference climate (Bari Doab)
-    # -------------------------
-    ref = df[df["Site"] == "Bari_Doab"].iloc[0]
-    X_ref = extract_ts(ref)
-
-    # Remove mean (interannual anomalies)
-    X_ref_anom = X_ref - X_ref.mean(axis=0)
-
-    # Covariance of interannual variability
-    Sigma = np.cov(X_ref_anom, rowvar=False)
-    Sigma_inv = np.linalg.inv(Sigma)
-
-    mu_ref = X_ref.mean(axis=0)
-
-    # --------------------------------------------------
-    # 4. AI spatial variance
-    # --------------------------------------------------
-    ai_vals = df["AI"].to_numpy(dtype=float)
-    mu_ai = ref["AI"]
-    sigma_ai = ai_vals.std(ddof=1)
-
-    # -------------------------
-    # Mahalanobis distance
-    # -------------------------
-    def mahalanobis(x, mu, S_inv):
-        d = x - mu
-        return np.sqrt(d @ S_inv @ d)
-
-    # df["Mahalanobis_D"] = [
-    #     mahalanobis(extract_ts(row).mean(axis=0), mu_ref, Sigma_inv)
-    #     for _, row in df.iterrows()
-    # ]
-
-    D_total = []
-
-    for _, row in df.iterrows():
-        X_site = extract_ts(row).mean(axis=0)
-
-        D_dyn = mahalanobis(X_site, mu_ref, Sigma_inv)
-        D_ai  = ((row["AI"] - mu_ai) / sigma_ai) ** 2
-
-        D_total.append(np.sqrt(D_dyn + D_ai))
-
-    df["Mahalanobis_D"] = D_total
-
-    # -------------------------
-    # σ thresholds (χ²)
-    # -------------------------
-    k = 5
-    D2 = np.sqrt(chi2.ppf(0.95, k))
-    D4 = np.sqrt(chi2.ppf(0.9999, k))
-
-    def classify(D):
-        if D <= D2:
-            return "Acceptable Analog"
-        elif D <= D4:
-            return "Marginal Analog (2–4σ)"
-        else:
-            return "Novel Climate (>4σ)"
-
-    df["Analog_Class"] = df["Mahalanobis_D"].apply(classify)
-
-    print("\nSigma thresholds:")
-    print(f"2σ threshold: {D2:.2f}")
-    print(f"4σ threshold: {D4:.2f}")
-
-    print(df[["Site", "Mahalanobis_D", "Analog_Class"]]
-          .sort_values("Mahalanobis_D"))
-
-    # Optional export
-
-    # df.to_csv("BariDoab_vs_FluxSites_Climate_v7_results.csv", index=False)
-
-    df.to_csv(output_dir / "climate_analog_results.csv", index=False)
+    result.to_csv(output_dir / 'climate_analog_results.csv', index=False)
+    diagnostic.update(input_file=str(input_file.resolve()), input_sha256=hashlib.sha256(input_file.read_bytes()).hexdigest())
+    (output_dir / 'climate_run.json').write_text(json.dumps(diagnostic, indent=2) + '\n')
+    print(result[['Site', 'Mahalanobis_D', 'Analog_Class']].sort_values('Mahalanobis_D').to_string(index=False))
+    print('Method note: historical composite score retained; see climate_run.json.', flush=True)
     return output_dir
